@@ -5,7 +5,15 @@
 
 Everything your AI coding agent needs to understand, install, and integrate [Indx Search](https://indx.co) in your project.
 
-Give your agent **[SKILL.md](./SKILL.md)** and it will know how to:
+## Install
+
+```bash
+npx skills add indxSearch/skill-indx-search
+```
+
+Or browse on [skills.sh](https://skills.sh/indxsearch/skill-indx-search/indx-search).
+
+## What your agent learns
 
 - Choose between the C# NuGet library and the HTTP API
 - Configure fields, queries, filters, boosts, and coverage tuning
