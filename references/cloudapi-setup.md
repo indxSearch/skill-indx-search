@@ -18,7 +18,7 @@ Requires **.NET 9.0 SDK**. The server starts at `https://localhost:5001`.
 2. Fill in email and password
 3. Submit — you're now logged in
 
-By default, registration is open to anyone. See [Registration Control](#registration-control) to restrict this.
+**Security note:** By default, registration is open to anyone with any email, and email confirmation is not required. Before deploying to production, review [Registration Control](#registration-control) and [Email Confirmation](#email-confirmation) to restrict access and require verified emails.
 
 ## Get an API Key
 
