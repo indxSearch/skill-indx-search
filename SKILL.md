@@ -55,11 +55,16 @@ Fields must be explicitly marked with their roles before indexing:
 
 Note: Weights affect pattern recognition directly. A short text pattern in a longer string will not necessarily rank higher than the same pattern in a shorter string, even if the longer field has higher weight.
 
+### Filters Must Be Server-Side
+
+Never filter results client-side after a search. The search only returns a limited number of results (`maxNumberOfRecordsToReturn`), so client-side filtering on that subset will miss documents. Always use `CreateValueFilter` / `CreateRangeFilter` / `CombineFilters` and pass the filter in the query (`query.Filter` in C#, `CloudQuery.filter` in HTTP) so the server applies the filter during search.
+
 ### Search Behavior Guidance
 
 - **Human-facing search**: Disable coverage (`EnableCoverage = false`) for broader results from pattern matching. Good for exploration and browsing.
 - **Agent/tool usage**: Keep coverage enabled (the default). Reduces noise and false positives for programmatic consumption.
 - **Empty search**: Supported with empty/null query text. Requires facets enabled and at least one facetable field. Returns all documents, ignores `CoverageDepth`.
+- **No debounce needed on search**: Indx is fast enough that debouncing search requests is unnecessary. Fire on every keystroke.
 
 ### Sorting Behavior
 
@@ -109,7 +114,7 @@ Support an empty search state (`allowEmptySearch`) that returns all documents wi
 
 ### Facet debouncing
 
-When doing search-as-you-type, don't re-fetch facets on every keystroke. Debounce facet requests (e.g. 500ms) while keeping result updates responsive. Facet computation is heavier and the counts jumping on every character is noisy.
+When doing search-as-you-type, search results need no debounce (Indx is fast enough to fire on every keystroke). But facet counts jumping on every character is noisy — debounce facet requests (e.g. 500ms) while keeping result updates immediate.
 
 ### Range filters from facet data
 
