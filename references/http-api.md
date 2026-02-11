@@ -1,43 +1,8 @@
 # HTTP API Integration
 
-For non-.NET tech stacks, deploy the IndxCloudApi server and interact via REST.
-
-## Setup
-
-```bash
-git clone https://github.com/indxSearch/IndxCloudApi
-cd IndxCloudApi
-dotnet run
-```
-
-Requires **.NET 9.0 SDK**. Access at `https://localhost:5001`. Register at `/Account/Register`. Swagger at `/swagger`.
+For non-.NET tech stacks, deploy the IndxCloudApi server and interact via REST. For setup, deployment, and configuration see [cloudapi-setup.md](cloudapi-setup.md).
 
 **OpenAPI spec**: `https://localhost:5001/swagger/v1/swagger.json`
-
-## Deploy to Azure (Recommended for Production)
-
-```bash
-# Create App Service with .NET 9 runtime, then:
-dotnet publish -c Release
-az webapp up --name your-app-name --resource-group your-resource-group
-```
-
-Works on Azure without any additional configuration. SQLite databases auto-create in persistent storage. See the [IndxCloudApi README](https://github.com/indxSearch/IndxCloudApi) for full Azure deployment guide.
-
-## Authentication
-
-```bash
-# 1. Login to get JWT token
-curl -X POST https://localhost:5001/api/Login \
-  -H "Content-Type: application/json" \
-  -d '{"userEmail": "you@example.com", "userPassWord": "YourPass1!"}'
-# → returns JWT token
-
-# 2. Use token in all requests
-curl -H "Authorization: Bearer <token>" https://localhost:5001/api/...
-```
-
-Long-lived API keys (30-365 days) can be generated from the web UI at `/Account/Manage`.
 
 ## API Endpoints
 
@@ -303,22 +268,6 @@ curl -X POST .../api/GetJson/products \
   -d '[42, 17]'
 # → ["{ \"id\": 42, \"title\": \"Wireless Headphones\", ... }", "..."]
 ```
-
-## Self-Host Production Configuration
-
-JWT security:
-```bash
-dotnet user-secrets set "Jwt:Key" "your-secret-key-minimum-32-characters"
-```
-
-Registration control:
-```json
-{ "Registration": { "Mode": "Open|EmailDomain|Closed", "AllowedDomains": ["yourcompany.com"] } }
-```
-
-License: place `.license` file in `./IndxData/` directory.
-
----
 
 ## Data Loading Reference
 

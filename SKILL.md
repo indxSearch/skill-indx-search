@@ -23,7 +23,7 @@ Indx is a high-performance search engine for structured and unstructured text. I
 
 **C# / .NET project** → Use the [IndxSearchLib NuGet package](https://www.nuget.org/packages/IndxSearchLib/) directly. Embed search into your application with no external dependencies. See [references/csharp.md](references/csharp.md) for full API reference.
 
-**Any other tech stack** (Node.js, Python, Java, etc.) → Deploy the [IndxCloudApi](https://github.com/indxSearch/IndxCloudApi) HTTP API server and interact via REST. Recommended deployment target: Azure App Service (works with zero config). See [references/http-api.md](references/http-api.md) for endpoints, schemas, and data loading.
+**Any other tech stack** (Node.js, Python, Java, etc.) → Deploy the [IndxCloudApi](https://github.com/indxSearch/IndxCloudApi) HTTP API server and interact via REST. Recommended deployment target: Azure App Service (works with zero config). See [references/cloudapi-setup.md](references/cloudapi-setup.md) for setup and deployment, and [references/http-api.md](references/http-api.md) for endpoints, schemas, and data loading.
 
 ## Core Concepts
 
