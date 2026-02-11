@@ -19,4 +19,4 @@ Give your agent **[SKILL.md](./SKILL.md)** and it will know how to:
 - [IndxCloudApi](https://github.com/indxSearch/IndxCloudApi) — Self-host HTTP API server
 - [API Documentation](https://docs.indx.co/api-41) — Full C# API reference
 - [@indxsearch/indx-types](https://www.npmjs.com/package/@indxsearch/indx-types) — TypeScript type definitions
-- [indx-intrface](https://github.com/indxSearch/indx-intrface) — React search UI components
+- [@indxsearch/intrface](https://www.npmjs.com/package/@indxsearch/intrface) — React search UI components ([GitHub](https://github.com/indxSearch/indx-intrface))
