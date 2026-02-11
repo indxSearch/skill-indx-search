@@ -1,0 +1,16 @@
+# Playground / test project
+playground-csharp/
+
+# .NET artifacts
+bin/
+obj/
+*.user
+*.suo
+*.sln
+
+# Claude local settings
+.claude/
+
+# OS files
+.DS_Store
+Thumbs.db
