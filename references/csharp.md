@@ -243,7 +243,7 @@ query.Filter = combined;
 query.Filter = null;
 ```
 
-Preload filters for faster first search:
+Preload filters for faster first search. Useful for large datasets where many filters are applied simultaneously (e.g. e-commerce with hundreds of warehouse/store availability filters per query):
 ```csharp
 engine.LoadFilters(new[] { categoryFilter, priceFilter }, threadCount: 2);
 // Or preload all: engine.LoadAllFilters(maxThreadCount: 4);

@@ -124,9 +124,9 @@ Use facet histograms to derive min/max bounds for range filter UI (sliders, inpu
 
 Show all active filters (value filters and range filters) as removable chips above the results. Include a "reset all" action. This gives the user a clear picture of what's narrowing their results.
 
-### Two-step result display
+### Two-step result display (C# only)
 
-Since Indx returns document keys and scores (not full documents), fetch full JSON separately via `GetJsonDataOfKey` (C#) or `GetJson` (HTTP). Only fetch the fields you need for display — keep the result list lightweight and load full details on demand.
+The C# NuGet API returns document keys and scores (not full documents). Fetch full JSON separately via `GetJsonDataOfKey`. Only fetch the fields you need for display — keep the result list lightweight and load full details on demand. The HTTP API returns full document JSON directly in the search response, so this step is not needed there.
 
 ### React component library
 
@@ -141,7 +141,7 @@ For React 19+ projects, [@indxsearch/intrface](https://github.com/indxSearch/ind
 - **In-memory indexing** — all search indexes live in memory for speed; persistence is metadata-only
 - **Linear coverage scaling** — coverage cost scales linearly with `coverageDepth`
 - **Schemaless JSON** — nested objects supported, fields discovered automatically via `Init`/`Analyze`
-- **Two-step retrieval** — search returns keys + scores; fetch full documents separately (`GetJsonDataOfKey` in C#, `GetJson` endpoint in HTTP)
+- **Two-step retrieval (C# only)** — the C# NuGet API returns keys + scores; fetch full documents separately with `GetJsonDataOfKey`. The HTTP API returns full document JSON directly in the search response
 
 ## Resources
 
