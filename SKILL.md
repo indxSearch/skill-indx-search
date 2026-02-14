@@ -61,8 +61,8 @@ Never filter results client-side after a search. The search only returns a limit
 
 ### Search Behavior Guidance
 
-- **Human-facing search**: Disable coverage (`EnableCoverage = false`) for broader results from pattern matching. Good for exploration and browsing.
-- **Agent/tool usage**: Keep coverage enabled (the default). Reduces noise and false positives for programmatic consumption.
+- **Keep coverage enabled** (the default). This is the recommended setting for nearly all use cases — both human-facing and programmatic. Only disable coverage in edge cases where you search a single field and only care about top-K fuzzy matches (e.g. name lookup). With coverage disabled, truncation is unreliable and results degrade when searching across multiple fields (title + description + category, etc.).
+- **Agent/tool usage**: Enable coverage and set `IncludePatternMatches = false` (`coverageSetup.includePatternMatches` in HTTP). This returns only exact and near-exact matches (within ~1 typo), filtering out loose pattern hits.
 - **Empty search**: Supported with empty/null query text. Requires facets enabled and at least one facetable field. Returns all documents, ignores `CoverageDepth`.
 - **No debounce needed on search**: Indx is fast enough that debouncing search requests is unnecessary. Fire on every keystroke.
 

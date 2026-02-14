@@ -198,17 +198,20 @@ Full with CoverageSetup (defaults shown):
 
 ## Common HTTP Patterns
 
-**Agent-optimized search** (precise, tight results):
+**Agent-optimized search** (exact and near-exact matches only):
 ```json
-{ "text": "exact product name XYZ-123", "maxNumberOfRecordsToReturn": 10 }
+{
+  "text": "exact product name XYZ-123",
+  "maxNumberOfRecordsToReturn": 10,
+  "coverageSetup": { "includePatternMatches": false }
+}
 ```
 
-**Human-facing exploratory search** (broad results with facets):
+**Human-facing search** (with facets):
 ```json
 {
   "text": "headphones",
   "maxNumberOfRecordsToReturn": 50,
-  "enableCoverage": false,
   "enableFacets": true
 }
 ```
