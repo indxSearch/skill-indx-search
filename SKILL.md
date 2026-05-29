@@ -21,9 +21,9 @@ Indx is a high-performance search engine for structured and unstructured text. I
 
 ## Choosing Your Integration Path
 
-**C# / .NET project** → Use the [IndxSearchLib NuGet package](https://www.nuget.org/packages/IndxSearchLib/) directly. Embed search into your application with no external dependencies. See [references/csharp.md](references/csharp.md) for full API reference.
+**C# / .NET project** → Use the [IndxSearchLib NuGet package](https://www.nuget.org/packages/IndxSearchLib/) directly (.NET 10, v5.0.0). Embed search into your application with no external dependencies. See [references/csharp.md](references/csharp.md) for full API reference.
 
-**Any other tech stack** (Node.js, Python, Java, etc.) → Deploy the [IndxCloudApi](https://github.com/indxSearch/IndxCloudApi) HTTP API server and interact via REST. Recommended deployment target: Azure App Service (works with zero config). See [references/cloudapi-setup.md](references/cloudapi-setup.md) for setup and deployment, and [references/http-api.md](references/http-api.md) for endpoints, schemas, and data loading.
+**Any other tech stack** (Node.js, Python, Java, etc.) → Deploy the [IndxCloudApi](https://github.com/indxSearch/IndxCloudApi) HTTP API server and interact via REST (.NET 10). Recommended deployment target: Azure App Service. See [references/cloudapi-setup.md](references/cloudapi-setup.md) for setup and deployment, and [references/http-api.md](references/http-api.md) for endpoints, schemas, and data loading.
 
 ## Core Concepts
 
@@ -49,9 +49,9 @@ Fields must be explicitly marked with their roles before indexing:
 
 **WordIndexing** — indexes entire words in a field. Useful for large datasets where many documents share the same words (e.g. a `category` field across thousands of products). Complements Searchable and must be combined with it on the same field. Only affects single-word queries.
 
-**Weight priority** — Searchable fields support a weight to control importance:
-- C# API: `Weight.High`, `Weight.Med`, `Weight.Low` (enum)
-- HTTP API: `0` (High), `1` (Medium), `2` (Low) (integer)
+**Weight** — Searchable fields have a `float` weight (default 1.25) to control importance. Higher = more influence on BM25 scoring. Typical range 0.5–3.0.
+- C# API: `new FieldProxy { FieldName = "title", Searchable = true, Weight = 2.0f }`
+- HTTP API: `{ "fieldName": "title", "searchable": true, "weight": 2.0 }`
 
 Note: Weights affect pattern recognition directly. A short text pattern in a longer string will not necessarily rank higher than the same pattern in a shorter string, even if the longer field has higher weight.
 
@@ -126,7 +126,7 @@ Show all active filters (value filters and range filters) as removable chips abo
 
 ### Two-step result display (C# only)
 
-The C# NuGet API returns document keys and scores (not full documents). Fetch full JSON separately via `GetJsonDataOfKey`. Only fetch the fields you need for display — keep the result list lightweight and load full details on demand. The HTTP API returns full document JSON directly in the search response, so this step is not needed there.
+The C# NuGet API returns document keys and scores (not full documents) in `result.Records`. Fetch full JSON separately via `engine.GetJsonDataOfKey(key)`. The HTTP API returns document keys too — use `POST GetJson/{dataset}` with the array of keys to retrieve full JSON. Only fetch the fields you need for display — keep the result list lightweight.
 
 ### React component library
 
@@ -146,9 +146,9 @@ For React 19+ projects, [@indxsearch/intrface](https://github.com/indxSearch/ind
 ## Resources
 
 - [Indx Home](https://indx.co) — registration and licensing
-- [API Documentation](https://docs.indx.co/api-41) — full C# API reference with How-To guides
+- [API Documentation](https://docs.indx.co) — full C# API reference with How-To guides
 - **C# / .NET**
-  - [IndxSearchLib NuGet](https://www.nuget.org/packages/IndxSearchLib/) — core search engine (.NET 9)
+  - [IndxSearchLib NuGet](https://www.nuget.org/packages/IndxSearchLib/) — core search engine (.NET 10, v5.0.0)
   - [IndxCloudLoader](https://github.com/indxSearch/IndxCloudLoader) — C# data loading reference
 - **HTTP API**
   - [IndxCloudApi](https://github.com/indxSearch/IndxCloudApi) — self-host server template (ASP.NET Core)

@@ -1,6 +1,6 @@
 # IndxCloudApi — Setup & Deployment
 
-This guide covers downloading, running, configuring, and deploying the IndxCloudApi server. For API endpoints and search usage, see [http-api.md](http-api.md).
+This guide covers running, configuring, and deploying the IndxCloudApi server. For API endpoints and search usage, see [http-api.md](http-api.md).
 
 ## Quick Start
 
@@ -10,111 +10,48 @@ cd IndxCloudApi
 dotnet run
 ```
 
-Requires **.NET 9.0 SDK**. The server starts at `https://localhost:5001`.
+Requires **.NET 10.0 SDK**. The server starts at `https://localhost:5001`.
 
-## Register a User
+## First Run
 
-1. Open `https://localhost:5001/Account/Register` in a browser
-2. Fill in email and password
-3. Submit — you're now logged in
+Navigate to `https://localhost:5001/Account/Register` and create an account. The **first user to register becomes admin** — no pre-configuration needed.
 
-**Security note:** By default, registration is open to anyone with any email, and email confirmation is not required. Before deploying to production, review [Registration Control](#registration-control) and [Email Confirmation](#email-confirmation) to restrict access and require verified emails.
+After logging in, go to **Admin → Settings** to configure registration mode, email provider, and other instance settings through the UI.
 
 ## Get an API Key
 
-1. Log in at `https://localhost:5001/Account/Login`
-2. Go to `https://localhost:5001/Account/ApiKey`
-3. Select token duration from the dropdown: **30**, **90**, **180**, or **360** days
-4. Click **Generate API Token**
-5. Copy the token using the copy button
+1. Log in at `/Account/Login`
+2. Navigate to `/Account/ApiKey`
+3. Select duration (30, 90, 180, or 360 days) and click **Generate API Token**
+4. Copy the token
 
-The page shows the token, its expiration timestamp, and curl examples for using it. You can regenerate a new token at any time (replaces the previous one).
-
-Use the token in all API requests:
-```bash
-curl -H "Authorization: Bearer <your-token>" https://localhost:5001/api/...
-```
-
-Alternatively, get a short-lived token programmatically:
+Or get a short-lived token programmatically:
 ```bash
 curl -X POST https://localhost:5001/api/Login \
   -H "Content-Type: application/json" \
   -d '{"userEmail": "you@example.com", "userPassWord": "YourPass1!"}'
 ```
 
-## Setting Secrets and Configuration
+Use the token in all API requests:
+```bash
+curl -H "Authorization: Bearer <your-token>" https://localhost:5001/api/...
+```
 
-IndxCloudApi reads configuration from `appsettings.json`, but sensitive values (JWT keys, OAuth secrets, connection strings) should be set via environment variables instead.
+## Configuration
 
-### Local Development — dotnet user-secrets
+IndxCloudApi reads from `appsettings.json` and environment variables. Sensitive values should always be set via environment variables, not committed to the repo.
+
+Most settings can also be changed through the **Admin → Settings** UI after first login, without restarting the app.
+
+### JWT Signing Key
+
+Auto-generated on first startup and saved to `IndxData/jwt.key`. No configuration needed. Set `Jwt__Key` explicitly only if you need to share the key across multiple instances:
 
 ```bash
-# Initialize (once per project)
-dotnet user-secrets init
-
-# Set secrets
-dotnet user-secrets set "Jwt:Key" "your-secret-key-minimum-32-characters"
-dotnet user-secrets set "Authentication:Google:ClientId" "your-client-id"
-dotnet user-secrets set "Authentication:Google:ClientSecret" "your-client-secret"
-dotnet user-secrets set "Authentication:Microsoft:ClientId" "your-client-id"
-dotnet user-secrets set "Authentication:Microsoft:ClientSecret" "your-client-secret"
-dotnet user-secrets set "Email:AzureCommunicationServices:ConnectionString" "your-connection-string"
+Jwt__Key = your-secret-key-minimum-32-characters
 ```
 
-Secrets are stored outside the project directory and override `appsettings.json` values. They are never committed to git.
-
-### Azure App Service — Application Settings
-
-In the Azure Portal: **App Service → Configuration → Application settings**
-
-Or via CLI:
-```bash
-az webapp config appsettings set --name your-app --resource-group your-rg --settings \
-  Jwt__Key="your-secret-key-minimum-32-characters" \
-  Authentication__Google__ClientId="your-client-id" \
-  Authentication__Google__ClientSecret="your-client-secret" \
-  Registration__Mode="EmailDomain" \
-  Registration__AllowedDomains__0="yourcompany.com"
-```
-
-Note: Azure uses `__` (double underscore) as the section separator instead of `:`.
-
-### Which values need secrets
-
-| Setting | Local | Azure | Required |
-|---------|-------|-------|----------|
-| `Jwt:Key` | `dotnet user-secrets` | App Settings | Yes (production) |
-| `Authentication:Google:ClientId/Secret` | `dotnet user-secrets` | App Settings | Only if using Google OAuth |
-| `Authentication:Microsoft:ClientId/Secret` | `dotnet user-secrets` | App Settings | Only if using Microsoft OAuth |
-| `Email:AzureCommunicationServices:ConnectionString` | `dotnet user-secrets` | App Settings | Only if sending real emails |
-| `Registration:Mode` | `appsettings.json` | App Settings | No (defaults to Open) |
-| `ConnectionStrings:*` | `appsettings.json` | Connection Strings | No (auto-configured) |
-
-## Configuration (appsettings.json)
-
-Non-secret settings can go directly in `appsettings.json`.
-
-### JWT Security
-
-**Required for production** — change the default signing key:
-
-```bash
-dotnet user-secrets set "Jwt:Key" "your-secret-key-minimum-32-characters"
-```
-
-Or in `appsettings.json` (development only):
-```json
-{
-  "Jwt": {
-    "Key": "your-secret-key-minimum-32-characters",
-    "Issuer": "IndxCloudApi"
-  }
-}
-```
-
-### Registration Control
-
-Control who can create accounts:
+### Registration Mode
 
 ```json
 {
@@ -128,22 +65,46 @@ Control who can create accounts:
 | Mode | Behavior |
 |------|----------|
 | `Open` | Anyone can register (default) |
-| `EmailDomain` | Only emails from `AllowedDomains` can register |
+| `EmailDomain` | Only emails from `AllowedDomains` |
 | `Closed` | No new registrations |
+| `Invite` | Only emails added to the invite list by an admin |
 
-Example — restrict to company emails:
-```json
-{
-  "Registration": {
-    "Mode": "EmailDomain",
-    "AllowedDomains": ["yourcompany.com"]
-  }
-}
+In `Invite` mode, admins add emails via **Admin → Users**. An invite email is sent automatically. The invite is consumed (removed from the list) when the user registers.
+
+### Email Provider
+
+Defaults to `Console` (logs emails to stdout — no SMTP required). Switch to Azure Communication Services to send real emails:
+
+```
+Email__Provider = AzureCommunicationServices
+Email__AzureCommunicationServices__ConnectionString = endpoint=https://...;accesskey=...
+Email__FromAddress = noreply@your-verified-domain.com
 ```
 
-### Database Paths
+See [docs/EMAIL_SETUP.md](https://github.com/indxSearch/IndxCloudApi/blob/main/docs/EMAIL_SETUP.md) for ACS setup.
 
-IndxCloudApi uses two SQLite databases. Default paths:
+### OAuth (Optional)
+
+```
+Authentication__Microsoft__ClientId = your-client-id
+Authentication__Microsoft__ClientSecret = your-client-secret
+Authentication__Google__ClientId = your-client-id
+Authentication__Google__ClientSecret = your-client-secret
+```
+
+When credentials are present, sign-in buttons appear on the login page automatically. Leave empty to use local accounts only.
+
+See [docs/OAUTH_SETUP.md](https://github.com/indxSearch/IndxCloudApi/blob/main/docs/OAUTH_SETUP.md) for app registration steps.
+
+### Email Confirmation
+
+```
+Identity__RequireConfirmedEmail = true
+```
+
+OAuth users are auto-confirmed. Requires a real email provider (not Console).
+
+### Database Paths
 
 ```json
 {
@@ -154,174 +115,91 @@ IndxCloudApi uses two SQLite databases. Default paths:
 }
 ```
 
-These auto-create on first run. No setup needed.
-
-### Email Provider
-
-Controls how confirmation and password reset emails are sent:
-
-```json
-{
-  "Email": {
-    "Provider": "Console",
-    "FromAddress": "noreply@example.com",
-    "FromName": "Indx Search"
-  }
-}
-```
-
-| Provider | Behavior |
-|----------|----------|
-| `Console` | Logs emails to stdout (default, for development) |
-| `AzureCommunicationServices` | Sends real emails via Azure |
-
-For Azure Communication Services:
-```json
-{
-  "Email": {
-    "Provider": "AzureCommunicationServices",
-    "AzureCommunicationServices": {
-      "ConnectionString": "your-azure-connection-string"
-    },
-    "FromAddress": "noreply@yourdomain.com",
-    "FromName": "Your App"
-  }
-}
-```
-
-### Email Confirmation
-
-```json
-{
-  "Identity": {
-    "RequireConfirmedEmail": false
-  }
-}
-```
-
-Set to `true` to require email confirmation before users can log in. Requires a working email provider (not `Console`).
-
-### OAuth (Optional)
-
-Support Google and/or Microsoft login:
-
-```json
-{
-  "Authentication": {
-    "Google": {
-      "ClientId": "your-google-client-id",
-      "ClientSecret": "your-google-client-secret"
-    },
-    "Microsoft": {
-      "ClientId": "your-microsoft-client-id",
-      "ClientSecret": "your-microsoft-client-secret"
-    }
-  }
-}
-```
+Two SQLite databases, auto-created on first run. Schema migrations run automatically at startup — no manual steps needed.
 
 ### License
 
-- **No license**: 100,000 document limit per dataset
-- **Extended license (free)**: Unlimited — register at [indx.co](https://indx.co)
+```
+Indx__LicenseFile = /path/to/indx-developer.license
+```
 
-Place the `.license` file in the `./IndxData/` directory. The server auto-detects it on startup.
+Or place the `.license` file in `./IndxData/` — auto-detected on startup. Without a license, a 100,000 document limit applies per dataset. Free developer licenses available at [indx.co](https://indx.co).
+
+## Local Development Secrets
+
+```bash
+dotnet user-secrets set "Authentication:Microsoft:ClientId" "your-client-id"
+dotnet user-secrets set "Email:AzureCommunicationServices:ConnectionString" "your-connection-string"
+```
+
+Stored outside the project directory, never committed to git.
 
 ## Deploy to Azure App Service
 
 ### 1. Create the App Service
 
 In the Azure Portal:
+- Runtime: **.NET 10** (Linux)
+- Plan: 2+ vCPUs recommended if reloading or reindexing while serving search traffic
 
-1. Go to **App Services → Create**
-2. Select **Windows** as the operating system
-3. Choose **.NET 9** as the runtime stack
-4. Select a plan — RAM is the main constraint. Any vCPU count works, but **2 vCPUs or more** is recommended if you plan to reload or reindex datasets while serving search traffic
+### 2. Deploy
 
-### 2. Deploy the Code
-
-Two recommended approaches:
-
-**Visual Studio:** Right-click the project → Publish → select your App Service.
-
-**Command line + VS Code Azure extension:**
 ```bash
 dotnet publish -c Release
 ```
-Then use the Azure extension in VS Code to deploy the `publish` output folder to your App Service.
 
-### 3. Set Environment Variables
+Then deploy via Azure CLI, VS Code Azure extension, GitHub Actions, or the Azure Portal.
+
+### 3. Set Application Settings
 
 In the Azure Portal: **App Service → Settings → Environment variables**
 
-Add each setting as a new application setting. Azure uses `__` (double underscore) as the section separator instead of `:`.
+Use `__` (double underscore) as the section separator.
 
-**Required:**
-
-| Name | Value | Notes |
-|------|-------|-------|
-| `Jwt__Key` | `your-secret-key-minimum-32-characters` | Must change from default |
-
-**Recommended:**
-
-| Name | Value | Notes |
-|------|-------|-------|
-| `Registration__Mode` | `EmailDomain` or `Closed` | Restrict who can register |
-| `Registration__AllowedDomains__0` | `yourcompany.com` | First allowed domain (add `__1`, `__2` for more) |
-
-**If using OAuth:**
+**Optional but recommended:**
 
 | Name | Value |
 |------|-------|
-| `Authentication__Google__ClientId` | your Google client ID |
-| `Authentication__Google__ClientSecret` | your Google client secret |
-| `Authentication__Microsoft__ClientId` | your Microsoft client ID |
-| `Authentication__Microsoft__ClientSecret` | your Microsoft client secret |
+| `ASPNETCORE_ENVIRONMENT` | `Production` |
+| `Registration__Mode` | `EmailDomain` or `Closed` |
+| `Registration__AllowedDomains__0` | `yourcompany.com` |
 
-**If using Azure Communication Services for email:**
+**Email (if using ACS):**
 
 | Name | Value |
 |------|-------|
 | `Email__Provider` | `AzureCommunicationServices` |
 | `Email__AzureCommunicationServices__ConnectionString` | your ACS connection string |
 | `Email__FromAddress` | `noreply@yourdomain.com` |
-| `Email__FromName` | your app name |
 | `Identity__RequireConfirmedEmail` | `true` |
 
-### 4. Set Up Email (Azure Communication Services)
+**OAuth (if needed):**
 
-If you need email confirmation or password reset, set up Azure Communication Services:
+| Name | Value |
+|------|-------|
+| `Authentication__Microsoft__ClientId` | your client ID |
+| `Authentication__Microsoft__ClientSecret` | your client secret |
+| `Authentication__Google__ClientId` | your client ID |
+| `Authentication__Google__ClientSecret` | your client secret |
 
-1. In the Azure Portal, create a **Communication Services** resource
-2. Go to the resource → **Email → Domains** and configure a sending domain
-3. Go to **Keys** and copy the connection string
-4. Add the connection string as an environment variable on your App Service (see table above)
+### 4. Database Persistence
 
-This is a standard Azure Communication Services setup — any AI agent can guide you through the specifics.
+The databases are stored at `./IndxData/` relative to the app. On Azure App Service this persists across redeployments (files not in the deployment package are preserved). For slot swaps, store databases on a persistent path outside the swap area (`/home/data/`) and point connection strings there via slot-sticky app settings.
 
 ### 5. Configure CORS
 
-In the Azure Portal: **App Service → API → CORS**
-
-Add the origins that need access to the API:
-- `http://localhost:3000` (or your local dev port) for development
-- `https://yourdomain.com` for production
-
-This is required for frontend applications calling the API from a browser.
-
-### 6. Database Paths
-
-No action needed. In production, database paths automatically adjust to Azure persistent storage (`D:\home\data\`). SQLite databases are created on first run.
+**App Service → API → CORS** — add your frontend origins:
+- `http://localhost:3000` (local dev)
+- `https://yourdomain.com` (production)
 
 ### Production Checklist
 
-1. Change the JWT signing key (`Jwt__Key`)
-2. Set registration mode to `EmailDomain` or `Closed`
-3. Configure CORS with your frontend origins
-4. Set up Azure Communication Services if using email confirmation
-5. Place `.license` file in `D:\home\data\` on Azure (or `./IndxData/` locally)
-6. Set up OAuth if needed
+1. Set `Registration__Mode` to `EmailDomain` or `Closed`
+2. Configure CORS
+3. Set up ACS if using email confirmation or password reset
+4. Place `.license` file in `IndxData/` (or configure `Indx__LicenseFile`)
+5. Set up OAuth if needed
 
 ## Request Size Limits
 
-The server accepts request bodies up to **2GB** (configured via Kestrel). This supports loading large JSON datasets via `LoadString` and `LoadStream`.
+The server accepts request bodies up to **2GB** — supports loading large JSON datasets via `LoadString` and `LoadStream`.

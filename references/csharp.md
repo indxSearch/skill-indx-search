@@ -6,12 +6,12 @@
 dotnet add package IndxSearchLib
 ```
 
-Targets **.NET 9.0**. Current version: **4.1.2**.
+Targets **.NET 10.0**. Current version: **5.0.0**.
 
 ## SearchEngine Constructor
 
 ```csharp
-// Default — works for most cases (config 400)
+// Default — works for most cases
 var engine = new SearchEngine();
 
 // With license file
@@ -29,23 +29,20 @@ using Indx.Api;
 var engine = new SearchEngine();
 
 // 1. Analyze JSON structure
-FileStream fstream = File.Open("products.json", FileMode.Open, FileAccess.Read);
-engine.Init(fstream);
+using var stream = File.OpenRead("products.json");
+engine.Init(stream);
 
 // 2. Configure fields
-engine.GetField("name")!.Searchable = true;
-engine.GetField("name")!.Weight = Weight.High;
-engine.GetField("description")!.Searchable = true;
-engine.GetField("description")!.Weight = Weight.Med;
-engine.GetField("category")!.Filterable = true;
-engine.GetField("category")!.Facetable = true;
-engine.GetField("price")!.Filterable = true;
-engine.GetField("price")!.Sortable = true;
+engine.SetFieldConfiguration([
+    new FieldProxy { FieldName = "name",        Searchable = true, Weight = 2.0f },
+    new FieldProxy { FieldName = "description", Searchable = true, Weight = 1.0f },
+    new FieldProxy { FieldName = "category",    Filterable = true, Facetable = true },
+    new FieldProxy { FieldName = "price",       Filterable = true, Sortable = true },
+]);
 
 // 3. Load and index
-fstream.Position = 0;
-engine.Load(fstream);
-fstream.Close();
+stream.Position = 0;
+engine.Load(stream);
 engine.Index();
 
 // 4. Search
@@ -55,7 +52,7 @@ var result = engine.Search(new Query("wireless headphones", 20));
 ## SearchEngine Lifecycle
 
 ```
-Init(stream) → Configure fields → Load(stream) → Index() → Search(query)
+Init(stream) → SetFieldConfiguration(...) → Load(stream) → Index() → Search(query)
 ```
 
 **Core methods:**
@@ -63,23 +60,20 @@ Init(stream) → Configure fields → Load(stream) → Index() → Search(query)
 | Method | Description |
 |--------|-------------|
 | `Init(Stream)` / `Init(Stream, ProcessMonitor?)` | Analyze JSON structure, discover fields. Blocks if monitor is null |
-| `GetField(name)` | Get a `Field` object to configure (Searchable, Filterable, Facetable, Sortable, WordIndexing, Weight) |
+| `GetFieldConfiguration()` | Returns `FieldProxy[]` of all discovered fields with their current settings |
+| `SetFieldConfiguration(FieldProxy[])` | Apply field roles and weights. Returns null on success, or the name of the first unknown field |
 | `Load(Stream)` / `Load(Stream, ProcessMonitor?)` | Load JSON documents into memory. Blocks if monitor is null |
-| `Index()` / `Index(ProcessMonitor)` | Build the search index asynchronously. Check `Status.SystemState` for progress |
+| `Index()` / `Index(ProcessMonitor)` | Build the search index. Check `Status.SystemState` for progress |
 | `Search(Query)` | Execute a search, returns `Result` |
-| `GetJsonDataOfKey(long)` | Retrieve the full JSON string for a document key |
-| `GetAllDocuments()` | Returns `List<Document>` of all loaded documents |
-| `DeleteJsonRecord(long)` | Delete a single document by key |
-| `DeleteRecordsInFilter(Filter)` | Bulk delete all documents matching a filter |
+| `GetJsonDataOfKey(long key)` | Retrieve the full JSON string for a document key |
 
 **Memory management:**
 
 | Method | Description |
 |--------|-------------|
-| `Hibernate(out string)` | Dispose indexed data to free memory. Searches will timeout. Can still configure fields and create filters |
-| `WakeUp(ProcessMonitor?)` | Exit hibernation, re-index and resume |
-| `Unload(out string)` | Delete all indexes and documents. Must be in Loaded or Ready state |
-| `Dispose()` | Free all resources. Use for hot-swapping engine instances |
+| `Hibernate(out string)` | Dispose indexed data to free memory. Searches will timeout. Filters remain usable |
+| `WakeUp()` / `WakeUp(int maxThreadCount)` | Exit hibernation, re-index and resume |
+| `Dispose()` | Free all resources |
 
 ## ProcessMonitor (Async Operations)
 
@@ -91,72 +85,76 @@ monitor.TimeoutSeconds = 120;
 
 engine.Load(fstream, monitor);
 
-// Poll progress
+// Poll or wait
 while (monitor.IsRunning)
-{
-    Console.WriteLine($"Progress: {monitor.ProgressPercent}%");
     Thread.Sleep(200);
-}
 
-// Or wait synchronously / asynchronously
 monitor.WaitForCompletion();
-await monitor.WaitForCompletionAsync();
+// or: await monitor.WaitForCompletionAsync();
 
 if (!monitor.Succeeded)
     Console.WriteLine($"Error: {monitor.ErrorMessage}");
 ```
 
 Key properties: `IsRunning`, `ProgressPercent` (0–100), `Succeeded`, `ErrorMessage`, `DidTimeOut`, `IsCompleted`.
-Supports `Cancel()` and configurable `ThreadPriority` (default: `Normal`).
-
-Using ProcessMonitor allows you to run loading and indexing in parallel.
 
 ## Analyzing Fields
 
-After `Init()`, inspect the discovered field structure:
+After `Init()`, inspect discovered fields:
 
 ```csharp
-engine.Init(fstream);
+engine.Init(stream);
 
-var fields = engine.DocumentFields.GetFieldList();
-fields.Sort((x, y) => x.Name.CompareTo(y.Name));
-foreach (var field in fields)
+foreach (var field in engine.GetFieldConfiguration())
 {
-    Console.WriteLine($"{field.Name} ({field.Type}) {(field.IsArray ? "IsArray" : "")} {(field.Optional ? "Optional" : "")}");
+    Console.WriteLine($"{field.FieldName} ({field.FieldType})" +
+        $"{(field.IsArray == true ? " IsArray" : "")}");
 }
 ```
 
-Field properties: `Name`, `Type` (JsonValueKind), `IsArray`, `Optional`, `Searchable`, `Filterable`, `Facetable`, `Sortable`, `WordIndexing`, `Weight` (enum), `PreloadFilters`.
+`FieldProxy` properties: `FieldName`, `FieldType` ("String"/"Number"/"Boolean"), `IsArray`, `Searchable`, `Filterable`, `Facetable`, `Sortable`, `WordIndexing`, `Embeddable`, `Weight`, `BM25b`, `BM25k1`, `PreloadFilters`.
 
-`PreloadFilters` — when `true`, the engine creates and caches filters for each distinct value of this field during `Load`. Access via `SearchEngine.GetPreloadedFilters`.
+## Field Configuration
 
-## Retrieving Field Configuration
+### Applying Configuration
+
+Use `SetFieldConfiguration` to configure fields in a single call. Only set the properties that matter — null properties are left unchanged.
 
 ```csharp
-// Facetable fields
-List<Field> facetableFields = engine.DocumentFields.GetFacetableFieldList();
-
-// Filterable fields
-List<Field> filterableFields = engine.DocumentFields.GetFilterableFieldList();
-
-// All fields (check individual properties for Searchable, Sortable, etc.)
-List<Field> allFields = engine.DocumentFields.GetFieldList();
+engine.SetFieldConfiguration([
+    new FieldProxy { FieldName = "title",       Searchable = true, Weight = 2.0f },
+    new FieldProxy { FieldName = "description", Searchable = true, Weight = 1.0f },
+    new FieldProxy { FieldName = "category",    Filterable = true, Facetable = true },
+    new FieldProxy { FieldName = "price",       Filterable = true, Sortable = true },
+    new FieldProxy { FieldName = "rating",      Sortable = true },
+]);
 ```
 
-## Saving and Loading Field Configuration
+`Weight` is a `float`. Higher values increase the field's influence on BM25 scoring relative to other searchable fields. Typical range: 0.5–3.0.
 
-After running `Init()` once, save the field configuration for faster subsequent loads:
+### Per-Field BM25 Tuning (Advanced)
+
+By default all searchable fields share the same `BM25k1` value (1.2), which activates BM25F scoring (single unified index). Setting different `BM25k1` values across fields switches to per-field BM25 scoring:
+
+```csharp
+new FieldProxy { FieldName = "title",       Searchable = true, BM25k1 = 1.5f, BM25b = 0.5f },
+new FieldProxy { FieldName = "description", Searchable = true, BM25k1 = 1.2f, BM25b = 0.75f },
+```
+
+`BM25b` controls length normalization (range 0–1, default 0.75). `BM25k1` controls term frequency saturation (range 1.0–2.0, default 1.2).
+
+### Saving and Loading Field Configuration
+
+After configuring once, save to skip `Init` on subsequent loads:
 
 ```csharp
 // First run: analyze, configure, save
-engine.Init(fstream);
-engine.GetField("title")!.Searchable = true;
-engine.GetField("title")!.Weight = Weight.High;
-engine.GetField("category")!.Facetable = true;
-engine.DocumentFields.SaveToFile("fieldconfig.json");
+engine.Init(stream);
+engine.SetFieldConfiguration([...]);
+engine.SaveFieldConfiguration("fieldconfig.json");
 
-// Subsequent runs: load config directly (skip Init)
-engine.LoadDocumentFields("fieldconfig.json");
+// Subsequent runs: load config (skip Init)
+engine.LoadFieldConfiguration("fieldconfig.json");
 ```
 
 ## Query Object
@@ -164,223 +162,204 @@ engine.LoadDocumentFields("fieldconfig.json");
 ```csharp
 var query = new Query("search text", maxResults)
 {
-    EnableCoverage = true,              // default: true
-    CoverageDepth = 500,                // default: 500 (auto-increases if maxResults > this)
-    CoverageSetup = coverageSetup,      // CoverageSetup object, default: null (uses defaults)
-    EnableFacets = false,               // default: false
-    EnableBoost = false,                // default: false
-    SortBy = engine.GetField("rating"), // Field object, default: null
-    SortAscending = false,              // default: false (descending)
-    RemoveDuplicates = true,            // default: true
-    Filter = filter,                    // Filter object, default: null
-    Boosts = boostArray,                // Boost[], default: null
-    KeyExcludeFilter = excludeFilter,   // KeyFilter — exclude specific documents
-    KeyIncludeFilter = includeFilter,   // KeyFilter — only include specific documents
-    TimeOutLimitMilliseconds = 1000     // default: 1000, max: 10000
+    EnableCoverage = true,                  // default: true
+    CoverageDepth = 500,                    // default: 500
+    CoverageSetup = coverageSetup,          // CoverageSetup object, default: null
+    EnableFacets = false,                   // default: false
+    EnableBoost = false,                    // default: false
+    SortBy = engine.GetField("rating"),     // Field object, default: null
+    SortAscending = false,                  // default: false
+    RemoveDuplicates = true,                // default: true
+    Filter = filter,                        // Filter object, default: null
+    Boosts = boostArray,                    // Boost[], default: null
+    FieldBoosts = new Dictionary<string, float> { ["title"] = 2.0f }, // BM25F per-query boost
+    TimeOutLimitMilliseconds = 1000         // default: 1000, max: 10000
 };
 ```
 
-## Handling Results
+`FieldBoosts` — per-query field boost multipliers for the BM25F scoring path. Only has effect when `ScoringMode` is `BM25F`. Fields not listed default to 1.0.
 
-Search returns `Result` with document keys and scores — not full JSON:
+## Handling Results
 
 ```csharp
 var result = engine.Search(query);
-if (result != null)
-{
-    // Iterate scored results (ordered by score descending)
-    foreach (var rec in result.Records)
-    {
-        long key = rec.DocumentKey;
-        int score = rec.Score;
-        string json = engine.GetJsonDataOfKey(key);
-        Console.WriteLine($"[{score}] {json}");
-    }
 
-    // Access facets (when enableFacets = true)
-    if (result.Facets != null)
-    {
-        foreach (var facet in result.Facets)
-        {
-            Console.WriteLine($"Facet: {facet.Key}");
-            foreach (var bucket in facet.Value)
-                Console.WriteLine($"  {bucket.Key}: {bucket.Value}");
-        }
-    }
+foreach (var entry in result.Records)
+{
+    long key    = entry.DocumentKey;
+    ushort score = entry.Score;          // 0–65535; higher = better match
+    string json = engine.GetJsonDataOfKey(key);
+    Console.WriteLine($"[{score}] {json}");
+}
+
+// Access facets
+if (result.Facets != null)
+{
+    foreach (var facet in result.Facets)
+        foreach (var bucket in facet.Value)
+            Console.WriteLine($"{facet.Key}: {bucket.Key} ({bucket.Value})");
 }
 ```
 
 Result properties:
-- `Records` — `ScoreEntry[]` with `DocumentKey` (long) and `Score` (byte, 0–255). Score 255 = identical similarity. Coverage overrides pattern scores upward for near-exact matches. Boost reduces scores for non-boosted documents.
+- `Records` — `ScoreEntry16[]` with `DocumentKey` (long) and `Score` (ushort, 0–65535). Coverage-confirmed matches always score higher than pure pattern matches.
 - `Facets` — `Dictionary<string, KeyValuePair<string, int>[]>` (field → value/count pairs)
-- `TruncationIndex` — index in the results where coverage truncation occurred (> -1 if coverage detected exact/near-exact matches)
-- `TruncationScore` — the score value at the truncation point
-- `DidTimeOut` — `true` if not enough CPU resources to complete within the timeout
+- `TruncationIndex` — index where coverage truncation occurred (–1 if no truncation)
+- `TruncationScore` — score value at the truncation point
+- `DidTimeOut` — `true` if search exceeded the timeout
 
 ## Filters
 
-Create filters on fields marked as Filterable. Precondition: `Init()` and `Load()` must be completed.
-
 ```csharp
-// Value filter (equality) — filterValue must have ToString() or be string
+// Value filter — equality match on a filterable field
 Filter categoryFilter = engine.CreateValueFilter("category", "electronics")!;
 
-// Range filter (numeric, inclusive on both ends)
+// Range filter — inclusive numeric range
 Filter priceFilter = engine.CreateRangeFilter("price", 10.0, 100.0)!;
 
-// Combine with operators: & (AND), | (OR), ! (NOT)
-Filter combined = categoryFilter & priceFilter;   // electronics AND price 10-100
-Filter either = categoryFilter | priceFilter;      // electronics OR price 10-100
-Filter excluded = !categoryFilter;                  // everything EXCEPT electronics
+// Combine with & (AND), | (OR), ! (NOT)
+Filter combined  = categoryFilter & priceFilter;
+Filter either    = categoryFilter | priceFilter;
+Filter excluded  = !categoryFilter;
 
-// Check how many documents match
+// Check match count
 int count = combined.NumberOfDocumentsInFilter;
 
 // Use in query
 query.Filter = combined;
-
-// Reset filter: pass null
-query.Filter = null;
 ```
 
-Preload filters for faster first search. Useful for large datasets where many filters are applied simultaneously (e.g. e-commerce with hundreds of warehouse/store availability filters per query):
+Preload filters for faster first search on large datasets:
 ```csharp
 engine.LoadFilters(new[] { categoryFilter, priceFilter }, threadCount: 2);
-// Or preload all: engine.LoadAllFilters(maxThreadCount: 4);
+// Or: engine.LoadAllFilters(maxThreadCount: 4);
 ```
 
 ## Boosts
 
-Boost results matching certain criteria without excluding non-matching results. Boosting only affects results where coverage detects exact or near-exact word hits. Must be created after `Load()` completes. `CreateBoost` pre-calculates all score values of affected documents.
+Boost results matching certain criteria without excluding non-matching results. Only affects results where coverage confirms a near-exact match. `CreateBoost` pre-calculates score adjustments for all matching documents.
 
 ```csharp
-// BoostStrength enum: Low = 1, Med = 2, High = 3
-Filter yearFilter = engine.CreateRangeFilter("year", 1980, 2025)!;
+Filter yearFilter  = engine.CreateRangeFilter("year", 1980, 2025)!;
 Filter genreFilter = engine.CreateValueFilter("genre", "Documentary")!;
 
-// CreateBoost accepts either Filter or KeyFilter
 var boosts = new List<Boost>();
-Boost b = engine.CreateBoost(yearFilter & genreFilter, BoostStrength.Med);
-Console.WriteLine($"Documents boosted: {b.DocumentsBoosted}");
-boosts.Add(b);
+boosts.Add(engine.CreateBoost(yearFilter & genreFilter, BoostStrength.Med));  // BoostStrength: Low, Med, High
 
-query.Boosts = boosts.ToArray();
+query.Boosts = boostArray;
 query.EnableBoost = true;
 ```
 
-## Personalized Boosting with KeyFilter
-
-For user-specific boosting across many items, use `KeyFilter` with the `|` operator:
+**Personalized boosting with KeyFilter** — for user-specific boosting at scale:
 
 ```csharp
-// Build a KeyFilter from multiple value filters
 KeyFilter frequentPurchases = new KeyFilter();
 foreach (long itemId in userFrequentItemIds)
 {
     Filter f = engine.CreateValueFilter("item_id", itemId)!;
     frequentPurchases = frequentPurchases | f.KeyFilter;
 }
-
-var userBoosts = new List<Boost>();
-userBoosts.Add(engine.CreateBoost(frequentPurchases, BoostStrength.Med));
-// Can boost hundreds of thousands of items without significant performance impact
-
-query.Boosts = userBoosts.ToArray();
-query.EnableBoost = true;
+boosts.Add(engine.CreateBoost(frequentPurchases, BoostStrength.Med));
 ```
+
+## Dynamic Document Operations
+
+Insert, update, and delete documents without rebuilding the index. The engine stays in Ready state throughout.
+
+```csharp
+// Insert single document
+engine.InsertJsonRecord(jsonString, out string error);
+
+// Insert multiple
+engine.InsertJsonRecords(new[] { json1, json2 }, monitor: null, out error);
+engine.InsertJsonRecords(jsonStream, monitor, out error);
+
+// Update single (replaces entire document; must include the key field)
+engine.UpdateJsonRecord(jsonString, out error);
+
+// Update multiple
+engine.UpdateJsonRecords(new[] { json1, json2 }, monitor: null, out error);
+
+// Partial field update
+engine.UpdateField(documentKey, "price", 49.99, out error);
+
+// Batch field update on a filter
+engine.UpdateFieldInFilter(priceFilter, "on_sale", true, out error);
+
+// Delete by key
+engine.DeleteJsonRecord(documentKey);
+
+// Delete multiple
+engine.DeleteJsonRecords(new[] { key1, key2 }, monitor: null);
+
+// Delete all matching a filter
+engine.DeleteRecordsInFilter(priceFilter);
+```
+
+A small `avgdl` drift accumulates over many incremental operations. A full `Index()` re-normalises it when needed.
 
 ## Coverage Control
 
-Coverage is a collection of algorithms that detect exact and near-exact token matches in the query, lifting them to the top of the result list. It complements the core pattern recognition which always runs first. For most applications the default values work well.
-
-**How it works**: After pattern matching produces ranked candidates, coverage analyzes the top-K results (controlled by `CoverageDepth`) and scores each 0–255 based on how well the query tokens are represented. Results confirmed by coverage are promoted above pure pattern matches. A `TruncationIndex` in the result marks where coverage-confirmed results end.
+Coverage re-evaluates the top-K pattern-match candidates for exact and near-exact token matches, promoting confirmed matches above pure pattern results.
 
 ```csharp
-CoverageSetup cov = new CoverageSetup();
-
-// Strict mode: only whole words (disable fuzzy, prefix/suffix)
-cov.CoverFuzzyWords = false;
-cov.CoverPrefixSuffix = false;
-cov.CoverWholeQuery = false;
-cov.CoverJoinedWords = true;
-cov.CoverWholeWords = true;
-cov.MinWordSize = 3;
-
+var cov = new CoverageSetup
+{
+    CoverWholeQuery    = true,    // default true — detect whole query as a string
+    CoverWholeWords    = true,    // default true — detect individual words
+    CoverFuzzyWords    = true,    // default true — edit-distance tolerance
+    CoverJoinedWords   = true,    // default true — handle split/joined words
+    CoverPrefixSuffix  = true,    // default true — detect partial words
+    IncludePatternMatches = true, // default true — set false for exact-only results
+    Truncate           = true,    // default true — cut results at coverage boundary
+    TruncationScore    = 255,     // default 255
+    TruncateWordHitLimit    = 1,  // default 1
+    TruncateWordHitTolerance = 0, // default 0
+    MinWordSize        = 2,       // default 2
+    LevenshteinMaxWordSize = 20,  // default 20
+};
 query.CoverageSetup = cov;
 ```
 
-**Detection algorithms** (all default `true`):
+## Common Patterns
 
-| Property | Description |
-|----------|-------------|
-| `CoverWholeQuery` | Detect the whole search query as a single string |
-| `CoverWholeWords` | Detect individual whole words from the query. Handles multiple words |
-| `CoverFuzzyWords` | Detect words with minor error tolerance (edit distance) |
-| `CoverJoinedWords` | Detect words that are either joined together or split apart. Both forms returned in same query |
-| `CoverPrefixSuffix` | Detect incomplete strings as prefix or suffix of a bigger word |
-
-**Result control**:
-
-| Property | Default | Description |
-|----------|---------|-------------|
-| `Truncate` | `true` | Cut the result list at the truncation index |
-| `IncludePatternMatches` | `true` | Include pure pattern matches not detected by coverage. Set to `false` to only return near-exact matches (requires coverage enabled) |
-| `TruncationScore` | `255` | Score threshold: always truncate at or above this score |
-| `TruncateWordHitLimit` | `1` | Minimum number of query words that must match for a result to survive truncation. Effective limit may be higher due to `TruncateWordHitTolerance` |
-| `TruncateWordHitTolerance` | `0` | Maximum difference in word hit count from the best result (`maxWordHits`) to still include in truncated list |
-
-**Token control**:
-
-| Property | Default | Description |
-|----------|---------|-------------|
-| `MinWordSize` | `2` | Minimum token length to detect. Values 2–5 recommended |
-| `LevenshteinMaxWordSize` | `20` | Longest word for edit distance calculation. Does not affect pattern recognition fault tolerance. Max: 64 |
-
-## Common C# Patterns
-
-**Near-exact hits only** — exclude pattern-match results, keep only coverage-confirmed matches:
+**Near-exact hits only:**
 ```csharp
-query.EnableCoverage = true;
-CoverageSetup cov = new CoverageSetup();
-cov.IncludePatternMatches = false; // only near-exact matches from coverage
-query.CoverageSetup = cov;
+query.CoverageSetup = new CoverageSetup { IncludePatternMatches = false };
 ```
 
-**Pattern matching only** (disable coverage):
+**Pattern matching only (disable coverage):**
 ```csharp
 query.EnableCoverage = false;
 ```
 
-**Run coverage but keep all results** (don't truncate):
+**Keep all results, don't truncate:**
 ```csharp
-query.EnableCoverage = true;
-CoverageSetup cov = new CoverageSetup();
-cov.Truncate = false;
-query.CoverageSetup = cov;
+query.CoverageSetup = new CoverageSetup { Truncate = false };
 ```
 
-**Deep coverage** (evaluate all documents):
+**Deep coverage (all documents):**
 ```csharp
 query.CoverageDepth = engine.Status.DocumentCount;
 ```
 
-**Empty search with sorting and facets** (browse mode):
+**Empty search — browse mode with sorting and facets:**
 ```csharp
-query.Text = ""; // or null
-query.SortBy = engine.GetField("rating")!; // descending by default
-query.EnableFacets = true;
+var query = new Query("", 50)
+{
+    SortBy = engine.GetField("rating"),
+    EnableFacets = true
+};
 ```
 
-**Get min/max from facets** (for range filter UI):
+**Get min/max from facets for range filter UI:**
 ```csharp
-query.EnableFacets = true;
+var query = new Query("", 1) { EnableFacets = true };
 var result = engine.Search(query);
 if (result.Facets != null && result.Facets.TryGetValue("price", out var histogram))
 {
-    var values = histogram.Select(item => int.Parse(item.Key)).ToList();
-    int min = values.Min();
-    int max = values.Max();
-    Filter priceRange = engine.CreateRangeFilter("price", min, max)!;
+    var values = histogram.Select(p => double.Parse(p.Key)).ToList();
+    var priceRange = engine.CreateRangeFilter("price", values.Min(), values.Max());
 }
 ```
 
@@ -390,4 +369,4 @@ if (result.Facets != null && result.Facets.TryGetValue("price", out var histogra
 - **Extended license (free)**: Unlimited — register at [indx.co](https://indx.co)
 - **Company license (paid)**: Unlimited + SLA and support
 
-Pass the license path to `SearchEngine` constructor or place `.license` file in the working directory.
+Pass the license path to the `SearchEngine` constructor, or place the `.license` file in the working directory.

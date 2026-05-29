@@ -15,7 +15,7 @@ All endpoints prefixed with `/api/`, JWT Bearer auth required.
 | PUT | `CreateOrOpen/{dataSetName}` | Create or open a dataset (default config) |
 | PUT | `CreateOrOpen/{dataSetName}/{configuration}` | Create with explicit config (int) |
 | DELETE | `DeleteDataSet/{dataSetName}` | Delete dataset permanently |
-| GET | `GetUserDatasets` | List your datasets → `string[]` |
+| GET | `GetUserDatasets` | List your datasets → `DataSetListDto[]` |
 | GET | `GetStatus/{dataSetName}` | Get dataset status → `SystemStatus` |
 | GET | `GetNumberOfJsonRecordsInDb/{dataSetName}` | Get document count → `int` |
 
@@ -23,35 +23,54 @@ All endpoints prefixed with `/api/`, JWT Bearer auth required.
 
 | Method | Endpoint | Body | Description |
 |--------|----------|------|-------------|
-| POST | `AnalyzeString/{dataSetName}` | JSON as string | Analyze JSON structure, discover fields |
-| POST | `AnalyzeStreamAsync/{dataSetName}` | JSON stream | Analyze via stream (large files) |
-| PUT | `LoadString/{dataSetName}` | JSON as string | Load JSON documents |
-| PUT | `LoadStream/{dataSetName}` | JSON stream body | Load via stream (large files) |
+| POST | `AnalyzeStreamAsync/{dataSetName}` | JSON body | Analyze JSON structure, discover fields |
+| POST | `AnalyzeString/{dataSetName}` | JSON as plain text string | Analyze from string |
+| PUT | `LoadString/{dataSetName}` | JSON as plain text string | Load JSON documents |
+| PUT | `LoadStream/{dataSetName}` | JSON body | Load via stream (large files) |
 | GET | `LoadFromDatabase/{dataSetName}` | — | Reload persisted data into memory |
 
 ### Field Configuration
 
+**Recommended — single unified endpoint:**
+
 | Method | Endpoint | Body | Description |
 |--------|----------|------|-------------|
-| PUT | `SetSearchableFields/{dataSetName}` | `[{"Item1":"title","Item2":0}]` | Set searchable fields with weights (0=High, 1=Med, 2=Low) |
-| PUT | `SetFilterableFields/{dataSetName}` | `["field1","field2"]` | Mark fields as filterable |
-| PUT | `SetFacetableFields/{dataSetName}` | `["field1","field2"]` | Mark fields as facetable |
-| PUT | `SetSortableFields/{dataSetName}` | `["field1","field2"]` | Mark fields as sortable |
-| PUT | `SetWordIndexingFields/{dataSetName}` | `["field1","field2"]` | Mark fields for word indexing |
-| GET | `GetSearchableFields/{dataSetName}` | — | → `string[]` |
-| GET | `GetFilterableFields/{dataSetName}` | — | → `string[]` |
-| GET | `GetFacetableFields/{dataSetName}` | — | → `string[]` |
-| GET | `GetSortableFields/{dataSetName}` | — | → `string[]` |
-| GET | `GetWordIndexingFields/{dataSetName}` | — | → `string[]` |
-| GET | `GetallFields/{dataSetName}` | — | All discovered fields → `string[]` |
+| PUT | `SetFieldConfiguration/{dataSetName}` | `FieldProxy[]` | Set all field roles and weights in one call |
+| GET | `GetFieldConfiguration/{dataSetName}` | — | Get current field configuration → `FieldProxy[]` |
+
+**Legacy separate endpoints (still available):**
+
+| Method | Endpoint | Body | Description |
+|--------|----------|------|-------------|
+| PUT | `SetSearchableFields/{dataSetName}` | `[{"Item1":"field","Item2":0}]` | Weights: 0=High, 1=Med, 2=Low |
+| PUT | `SetFilterableFields/{dataSetName}` | `["field1","field2"]` | |
+| PUT | `SetFacetableFields/{dataSetName}` | `["field1","field2"]` | |
+| PUT | `SetSortableFields/{dataSetName}` | `["field1","field2"]` | |
+| PUT | `SetWordIndexingFields/{dataSetName}` | `["field1","field2"]` | |
 
 ### Indexing and Search
 
 | Method | Endpoint | Body | Description |
 |--------|----------|------|-------------|
-| GET | `IndexDataSet/{dataSetName}` | — | Trigger indexing (async) → `SystemStatus` |
+| GET | `IndexDataSet/{dataSetName}` | — | Trigger indexing → `SystemStatus` |
 | POST | `Search/{dataSetName}` | `CloudQuery` | Execute search → `Result` |
 | POST | `GetJson/{dataSetName}` | `long[]` (document keys) | Retrieve full JSON records → `string[]` |
+
+### Dynamic Document Operations
+
+Insert, update, and delete without rebuilding the index. The dataset stays ready throughout.
+
+| Method | Endpoint | Body | Description |
+|--------|----------|------|-------------|
+| POST | `{dataSetName}/insert` | `string[]` (JSON objects) | Insert multiple documents |
+| POST | `{dataSetName}/insert/{documentKey}` | JSON string | Insert single document |
+| PUT | `{dataSetName}/update` | `string[]` (JSON objects) | Update multiple documents (must include key field) |
+| PUT | `{dataSetName}/update/{documentKey}` | JSON string | Update single document |
+| PUT | `{dataSetName}/field/{documentKey}` | `UpdateFieldProxy` | Partial field update on one document |
+| DELETE | `{dataSetName}/{documentKey}` | — | Delete single document |
+| DELETE | `{dataSetName}` | `long[]` | Delete multiple documents by key |
+| DELETE | `DeleteRecordsInFilter/{dataSetName}` | `FilterProxy` | Delete all documents matching a filter |
+| PUT | `UpdateFieldInFilter/{dataSetName}` | `FilterFieldUpdateProxy` | Batch update a field on all matching documents |
 
 ### Filters and Boosts
 
@@ -63,6 +82,21 @@ All endpoints prefixed with `/api/`, JWT Bearer auth required.
 | PUT | `CreateBoost/{dataSetName}` | `BoostProxy` | Create boost rule → `BoostProxy` |
 
 ## Schemas
+
+### FieldProxy (Field Configuration)
+
+```json
+[
+  { "fieldName": "title",       "searchable": true,  "weight": 2.0 },
+  { "fieldName": "description", "searchable": true,  "weight": 1.0 },
+  { "fieldName": "category",    "filterable": true,  "facetable": true },
+  { "fieldName": "price",       "filterable": true,  "sortable": true },
+  { "fieldName": "rating",      "sortable": true }
+]
+```
+
+All fields are optional (null = unchanged). Available properties:
+`fieldName`, `fieldType`, `isArray`, `searchable`, `filterable`, `facetable`, `sortable`, `wordIndexing`, `embeddable`, `weight` (float), `bm25b` (float, 0–1), `bm25k1` (float, 1–2), `preloadFilters`.
 
 ### CloudQuery (Search Request)
 
@@ -86,8 +120,16 @@ Full (with defaults shown):
   "timeOutLimitMilliseconds": 1000,
   "filter": null,
   "boosts": null,
-  "coverageSetup": null
+  "coverageSetup": null,
+  "fieldBoosts": {}
 }
+```
+
+`sortBy` — field name as a **string** (e.g. `"price"`).
+
+`fieldBoosts` — per-field BM25F boost multipliers:
+```json
+{ "fieldBoosts": { "title": 2.0, "description": 1.0 } }
 ```
 
 Full with CoverageSetup (defaults shown):
@@ -95,8 +137,6 @@ Full with CoverageSetup (defaults shown):
 {
   "text": "search terms",
   "maxNumberOfRecordsToReturn": 30,
-  "enableCoverage": true,
-  "coverageDepth": 1000,
   "coverageSetup": {
     "coverWholeQuery": true,
     "coverWholeWords": true,
@@ -119,8 +159,8 @@ Full with CoverageSetup (defaults shown):
 ```json
 {
   "records": [
-    { "documentKey": 42, "score": 890 },
-    { "documentKey": 17, "score": 650 }
+    { "documentKey": 42, "score": 52000 },
+    { "documentKey": 17, "score": 31000 }
   ],
   "facets": {
     "category": [
@@ -129,29 +169,31 @@ Full with CoverageSetup (defaults shown):
     ]
   },
   "truncationIndex": 15,
-  "truncationScore": 255,
+  "truncationScore": 52000,
   "didTimeOut": false
 }
 ```
 
-- `records` — Array of `{ documentKey (int64), score (int32) }`. Use `GetJson` to retrieve full documents.
-- `facets` — Map of field name → `[{key, value}]` pairs. Only populated when `enableFacets: true`.
-- `truncationIndex` — Where coverage truncation occurred in the results.
-- `didTimeOut` — Whether the search hit the timeout limit.
+- `records` — `[{ documentKey, score }]`. Score is 0–65535 (ushort); coverage hits always score higher than pattern-only matches.
+- `facets` — only populated when `enableFacets: true`.
+- `truncationIndex` — where coverage truncation occurred (–1 if none).
+- `didTimeOut` — hit the timeout limit.
+
+Use `POST GetJson/{dataSetName}` with the array of `documentKey` values to retrieve full JSON documents.
 
 ### Filter and Boost Models
 
 ```json
-// ValueFilterProxy — equality match on a filterable field
+// ValueFilterProxy — equality match
 { "fieldName": "category", "value": "electronics" }
 
-// RangeFilterProxy — numeric range on a filterable field
+// RangeFilterProxy — inclusive numeric range
 { "fieldName": "price", "lowerLimit": 10.0, "upperLimit": 100.0 }
 
-// FilterProxy — returned by filter creation endpoints, referenced in queries
+// FilterProxy — handle returned by filter creation endpoints
 { "hashString": "<filter-hash>" }
 
-// CombinedFilterProxy — combine two existing filters
+// CombinedFilterProxy — AND/OR two existing filters
 {
   "a": { "hashString": "<filter-a-hash>" },
   "b": { "hashString": "<filter-b-hash>" },
@@ -161,6 +203,9 @@ Full with CoverageSetup (defaults shown):
 // BoostProxy — boost results matching a filter
 // boostStrength: 1 (Low), 2 (Med), 3 (High)
 { "boostStrength": 2, "filterProxy": { "hashString": "<filter-hash>" } }
+
+// UpdateFieldProxy — partial field update
+{ "fieldName": "price", "value": 49.99 }
 ```
 
 ### SystemStatus
@@ -172,7 +217,7 @@ Full with CoverageSetup (defaults shown):
   "searchCounter": 42,
   "secondsToIndex": 2,
   "reIndexRequired": false,
-  "version": "4.1.2",
+  "version": "5.0.0",
   "errorMessage": null,
   "invalidDataSetName": false,
   "invalidState": false
@@ -184,21 +229,20 @@ Full with CoverageSetup (defaults shown):
 ## HTTP API Workflow
 
 ```
-1. POST  Login                              → get JWT token
-2. PUT   CreateOrOpen/{dataSetName}         → create dataset
-3. POST  AnalyzeString/{dataSetName}        → discover fields (JSON string as body)
-4. PUT   SetSearchableFields/{dataSetName}  → [{"Item1":"title","Item2":0}]
-5. PUT   Set*Fields/{dataSetName}           → configure filterable/facetable/sortable
-6. PUT   LoadString/{dataSetName}           → load JSON data
-7. GET   IndexDataSet/{dataSetName}         → trigger indexing
-8. GET   GetStatus/{dataSetName}            → poll until systemState = 4 (Ready)
-9. POST  Search/{dataSetName}              → returns document keys + scores
-10. POST GetJson/{dataSetName}             → fetch full JSON by document keys
+1. POST  Login                                   → get JWT token
+2. PUT   CreateOrOpen/{dataSetName}              → create dataset
+3. POST  AnalyzeStreamAsync/{dataSetName}        → discover fields
+4. PUT   SetFieldConfiguration/{dataSetName}     → configure all fields in one call
+5. PUT   LoadStream/{dataSetName}                → load JSON data
+6. GET   IndexDataSet/{dataSetName}              → trigger indexing
+7. GET   GetStatus/{dataSetName}                 → poll until systemState = 4 (Ready)
+8. POST  Search/{dataSetName}                    → returns records with documentKey + score
+9. POST  GetJson/{dataSetName}                   → fetch full JSON by document keys
 ```
 
 ## Common HTTP Patterns
 
-**Agent-optimized search** (exact and near-exact matches only):
+**Agent-optimized search (exact and near-exact only):**
 ```json
 {
   "text": "exact product name XYZ-123",
@@ -207,7 +251,7 @@ Full with CoverageSetup (defaults shown):
 }
 ```
 
-**Human-facing search** (with facets):
+**Human-facing search with facets:**
 ```json
 {
   "text": "headphones",
@@ -216,12 +260,13 @@ Full with CoverageSetup (defaults shown):
 }
 ```
 
-**Empty search** (browse mode with sorting):
+**Empty search — browse mode with sorting:**
 ```json
 {
   "text": "",
   "maxNumberOfRecordsToReturn": 50,
   "sortBy": "rating",
+  "sortAscending": false,
   "enableFacets": true
 }
 ```
@@ -230,77 +275,86 @@ Full with CoverageSetup (defaults shown):
 ```bash
 # 1. Create filters
 curl -X PUT .../api/CreateValueFilter/products \
+  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"fieldName":"category","value":"electronics"}'
 # → {"hashString":"abc123..."}
 
 curl -X PUT .../api/CreateRangeFilter/products \
+  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"fieldName":"price","lowerLimit":10,"upperLimit":100}'
 # → {"hashString":"def456..."}
 
-# 2. Combine filters (AND)
+# 2. Combine (AND)
 curl -X PUT .../api/CombineFilters/products \
+  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"a":{"hashString":"abc123..."},"b":{"hashString":"def456..."},"useAndOperation":true}'
+  -d '{"a":{"hashString":"abc123"},"b":{"hashString":"def456"},"useAndOperation":true}'
 # → {"hashString":"combined789..."}
 
 # 3. Search with filter
 curl -X POST .../api/Search/products \
+  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"text":"wireless","maxNumberOfRecordsToReturn":20,"filter":{"hashString":"combined789..."}}'
 ```
 
 **Boosted search:**
 ```bash
-# 1. Create a boost (boostStrength: 1=Low, 2=Med, 3=High)
 curl -X PUT .../api/CreateBoost/products \
+  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"boostStrength":3,"filterProxy":{"hashString":"<filter-hash>"}}'
 
-# 2. Search with boost
 curl -X POST .../api/Search/products \
+  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"text":"headphones","maxNumberOfRecordsToReturn":20,"enableBoost":true,"boosts":[{"boostStrength":3,"filterProxy":{"hashString":"<filter-hash>"}}]}'
+```
+
+**Dynamic insert:**
+```bash
+curl -X POST .../api/products/insert \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '["{\"id\":999,\"name\":\"New Product\",\"price\":29.99}"]'
+```
+
+**Partial field update:**
+```bash
+curl -X PUT .../api/products/field/42 \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"fieldName":"price","value":24.99}'
 ```
 
 **Retrieve full documents:**
 ```bash
 curl -X POST .../api/GetJson/products \
+  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '[42, 17]'
-# → ["{ \"id\": 42, \"title\": \"Wireless Headphones\", ... }", "..."]
+# → ["{ \"id\": 42, ... }", "{ \"id\": 17, ... }"]
 ```
 
-## Data Loading Reference
-
-Loading data into Indx via the HTTP API follows a consistent pattern regardless of your tech stack. Reference implementations exist for both Node.js and C#.
-
-### TypeScript / Node.js
-
-Install the types package for full TypeScript support:
+## Data Loading Reference (TypeScript / Node.js)
 
 ```bash
 pnpm add @indxsearch/indx-types axios
 ```
 
-The `@indxsearch/indx-types` package exports: `SystemStatus`, `SystemState`, `CloudQuery`, `Result`, `FilterProxy`, `RangeFilterProxy`, `ValueFilterProxy`, `CombinedFilterProxy`, `BoostProxy`, `BoostStrength`.
-
-**Complete load-and-index workflow (Node.js):**
-
 ```typescript
 import axios from 'axios';
 import * as fs from 'fs';
-import { SystemState, CloudQuery } from '@indxsearch/indx-types';
 
 const API = 'https://localhost:5001/api';
 
 // Authenticate
-const loginRes = await axios.post(`${API}/Login`, {
+const { data: { token } } = await axios.post(`${API}/Login`, {
   userEmail: 'you@example.com',
   userPassWord: 'YourPass1!'
 });
-const token = loginRes.data.token;
 const client = axios.create({
   baseURL: API,
   headers: { Authorization: `Bearer ${token}` }
@@ -311,139 +365,48 @@ const dataset = 'products';
 // 1. Create dataset
 await client.put(`CreateOrOpen/${dataset}`, '');
 
-// 2. Analyze JSON structure (discover fields)
+// 2. Analyze
 const jsonData = fs.readFileSync('products.json', 'utf-8');
-await client.post(`AnalyzeString/${dataset}`, jsonData, {
-  headers: { 'Content-Type': 'text/plain' }
+await client.post(`AnalyzeStreamAsync/${dataset}`, jsonData, {
+  headers: { 'Content-Type': 'application/json' }
 });
 
-// 3. Configure fields
-//    Searchable: Item1 = field name, Item2 = weight (0=High, 1=Med, 2=Low)
-await client.put(`SetSearchableFields/${dataset}`, [
-  { Item1: 'name', Item2: 0 },
-  { Item1: 'description', Item2: 1 }
+// 3. Configure fields — single call replaces all the old Set* endpoints
+await client.put(`SetFieldConfiguration/${dataset}`, [
+  { fieldName: 'name',        searchable: true, weight: 2.0 },
+  { fieldName: 'description', searchable: true, weight: 1.0 },
+  { fieldName: 'category',    filterable: true, facetable: true },
+  { fieldName: 'price',       filterable: true, sortable: true },
 ]);
-await client.put(`SetFilterableFields/${dataset}`, ['category', 'price']);
-await client.put(`SetFacetableFields/${dataset}`, ['category']);
-await client.put(`SetSortableFields/${dataset}`, ['price']);
 
-// 4. Load data via stream (recommended for large files)
+// 4. Load
 const fileStream = fs.createReadStream('products.json');
 const fileStats = fs.statSync('products.json');
 await client.put(`LoadStream/${dataset}`, fileStream, {
-  headers: {
-    'Content-Type': 'text/plain',
-    'Content-Length': fileStats.size.toString()
-  },
+  headers: { 'Content-Type': 'application/json', 'Content-Length': fileStats.size },
   maxBodyLength: Infinity
 });
 
-// 5. Index and wait for ready
+// 5. Index and wait
 await client.get(`IndexDataSet/${dataset}`);
-let status;
-do {
-  await new Promise(r => setTimeout(r, 200));
-  const res = await client.get(`GetStatus/${dataset}`);
-  status = res.data;
-} while (status.systemState !== 4); // 4 = Ready
-
-// 6. Search
-const query: CloudQuery = {
-  text: 'wireless headphones',
-  maxNumberOfRecordsToReturn: 10
-};
-const searchRes = await client.post(`Search/${dataset}`, query);
-const result = searchRes.data;
-
-// 7. Fetch full documents
-const keys = result.records.map((r: any) => r.documentKey);
-const docsRes = await client.post(`GetJson/${dataset}`, keys);
-console.log(docsRes.data); // string[] of JSON records
-```
-
-### Dataset Configuration Pattern
-
-Structure your field configuration as a reusable config object:
-
-```typescript
-// TypeScript
-interface DatasetConfig {
-  name: string;
-  filePath: string;
-  searchableFields: { name: string; weight: number }[];  // 0=High, 1=Med, 2=Low
-  wordIndexingFields: string[];
-  filterableFields: string[];
-  facetableFields: string[];
-  sortableFields: string[];
-}
-
-const moviesConfig: DatasetConfig = {
-  name: 'tmdb',
-  filePath: 'data/tmdb_top10k.json',
-  searchableFields: [
-    { name: 'title', weight: 0 },          // High
-    { name: 'original_title', weight: 1 },  // Med
-    { name: 'description', weight: 1 },     // Med
-    { name: 'actors', weight: 2 }           // Low
-  ],
-  wordIndexingFields: ['title'],
-  filterableFields: ['release_year', 'vote_average', 'genres', 'actors'],
-  facetableFields: ['release_year', 'vote_average', 'genres', 'actors'],
-  sortableFields: ['popularity', 'vote_average']
-};
-```
-
-```csharp
-// C# equivalent — note: weights use (string, int) tuples
-var config = new {
-    Name = "tmdb",
-    FilePath = "data/tmdb_top10k.json",
-    SearchableFields = new[] {
-        ("title", (int)Weight.High),
-        ("original_title", (int)Weight.Med),
-        ("description", (int)Weight.Med),
-        ("actors", (int)Weight.Low)
-    },
-    WordIndexingFields = new[] { "title" },
-    FilterableFields = new[] { "release_year", "vote_average", "genres", "actors" },
-    FacetableFields = new[] { "release_year", "vote_average", "genres", "actors" },
-    SortableFields = new[] { "popularity", "vote_average" }
-};
-```
-
-### Status Polling
-
-After calling `IndexDataSet`, poll `GetStatus` until `systemState` reaches `4` (Ready):
-
-```typescript
-// Node.js
 let ready = false;
 while (!ready) {
   await new Promise(r => setTimeout(r, 200));
-  const res = await client.get(`GetStatus/${dataset}`);
-  ready = res.data.systemState === 4; // SystemState.Ready
+  const { data } = await client.get(`GetStatus/${dataset}`);
+  ready = data.systemState === 4;
 }
+
+// 6. Search
+const { data: result } = await client.post(`Search/${dataset}`, {
+  text: 'wireless headphones',
+  maxNumberOfRecordsToReturn: 10
+});
+
+// 7. Fetch full documents
+const keys = result.records.map((r: any) => r.documentKey);
+const { data: docs } = await client.post(`GetJson/${dataset}`, keys);
 ```
 
-States you may observe during loading: `0`→Created, `1`→Analyzing, `2`→Loaded, `3`→Indexing, `4`→Ready.
-
-### Searchable Fields: The Item1/Item2 Format
-
-When calling `SetSearchableFields` via the HTTP API, the server expects C# `ValueTuple` serialization format. You must use `Item1` (field name) and `Item2` (weight integer), **not** `name`/`weight`:
-
-```json
-// CORRECT
-[{ "Item1": "title", "Item2": 0 }, { "Item1": "description", "Item2": 1 }]
-
-// WRONG — will silently fail
-[{ "name": "title", "weight": 0 }, { "name": "description", "weight": 1 }]
-```
-
-### Full Reference Implementations
-
-For complete working examples with CLI menus, progress monitoring, error handling, and test searches:
-
-- **Node.js / TypeScript**: [IndxNodeLoader](https://github.com/indxSearch/IndxNodeLoader) — uses `axios`, `@indxsearch/indx-types`
-- **C# / .NET**: [IndxCloudLoader](https://github.com/indxSearch/IndxCloudLoader) — uses `HttpClient`, `System.Text.Json`
-
-Both loaders include sample datasets (TMDB movies, Pokedex) for testing.
+**Reference implementations:**
+- [IndxNodeLoader](https://github.com/indxSearch/IndxNodeLoader) — Node.js/TypeScript
+- [IndxCloudLoader](https://github.com/indxSearch/IndxCloudLoader) — C#/.NET
