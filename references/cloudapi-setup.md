@@ -25,17 +25,24 @@ After logging in, go to **Admin → Settings** to configure registration mode, e
 3. Select duration (30, 90, 180, or 360 days) and click **Generate API Token**
 4. Copy the token
 
-Or get a short-lived token programmatically:
-```bash
-curl -X POST https://localhost:5001/api/Login \
-  -H "Content-Type: application/json" \
-  -d '{"userEmail": "you@example.com", "userPassWord": "YourPass1!"}'
-```
-
 Use the token in all API requests:
 ```bash
 curl -H "Authorization: Bearer <your-token>" https://localhost:5001/api/...
 ```
+
+## Teams
+
+IndxCloudApi organises access around **teams**. A team owns datasets, and every member has the same role on all of the team's datasets:
+
+| Role | Search | Modify data & fields | Delete / transfer |
+|------|:------:|:--------------------:|:-----------------:|
+| `Admin` | ✓ | ✓ | ✓ |
+| `Editor` | ✓ | ✓ | — |
+| `Viewer` | ✓ | — | — |
+
+A user can belong to multiple teams. On registration you get a personal team; create more from the account portal's team pages, where you also add members and assign roles.
+
+Because datasets belong to teams, **every dataset API endpoint is scoped to a team**: `/api/teams/{teamName}/datasets/{dataSetName}/{operation}`. List the datasets you can reach with `GET /api/me/datasets` (each entry carries its `teamName` and your `role`). See [http-api.md](http-api.md).
 
 ## Configuration
 

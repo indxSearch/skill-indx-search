@@ -4,82 +4,119 @@ For non-.NET tech stacks, deploy the IndxCloudApi server and interact via REST. 
 
 **OpenAPI spec**: `https://localhost:5001/swagger/v1/swagger.json`
 
+## Authentication
+
+All endpoints require a **JWT Bearer token**. Create one on the IndxCloudApi website — the **API Key** page in your account portal (`/Account/ApiKey`) — then send it on every request:
+
+```bash
+curl -H "Authorization: Bearer <token>" https://your-host/api/...
+```
+
+The integration flow is token-only: you create the token in the portal, not via an API call.
+
+## Teams and dataset scoping
+
+Datasets are owned by **teams**. A user can belong to multiple teams with a role on each. **Every dataset endpoint is scoped to a team and a dataset:**
+
+```
+/api/teams/{teamName}/datasets/{dataSetName}/{operation}
+```
+
+The tables below list just the `{operation}`. Endpoints that aren't dataset-scoped (listing datasets) show their full path.
+
+| Role | Search | Modify data & fields | Delete / transfer |
+|------|:------:|:--------------------:|:-----------------:|
+| `Admin` | ✓ | ✓ | ✓ |
+| `Editor` | ✓ | ✓ | — |
+| `Viewer` | ✓ | — | — |
+
+Team membership and roles are managed in the account portal, not via this API.
+
 ## API Endpoints
 
 All endpoints prefixed with `/api/`, JWT Bearer auth required.
 
-### Dataset Lifecycle
+### Datasets
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| PUT | `CreateOrOpen/{dataSetName}` | Create or open a dataset (default config) |
-| PUT | `CreateOrOpen/{dataSetName}/{configuration}` | Create with explicit config (int) |
-| DELETE | `DeleteDataSet/{dataSetName}` | Delete dataset permanently |
-| GET | `GetUserDatasets` | List your datasets → `DataSetListDto[]` |
-| GET | `GetStatus/{dataSetName}` | Get dataset status → `SystemStatus` |
-| GET | `GetNumberOfJsonRecordsInDb/{dataSetName}` | Get document count → `int` |
+| Method | Path / Operation | Description |
+|--------|------------------|-------------|
+| GET | `/api/me/datasets` | List every dataset across your teams → `DataSetListDto[]` (each with `teamName` + your `role`) |
+| GET | `/api/teams/{teamName}/datasets` | List datasets owned by one team → `string[]` |
+| PUT | `CreateOrOpen` | Create or open a dataset (default config) |
+| PUT | `CreateOrOpen/{configuration}` | Create with explicit config (int) |
+| GET | `GetStatus` | Get dataset status → `CloudSystemStatus` |
+| GET | `GetNumberOfJsonRecordsInDb` | Get document count → `int` |
+| DELETE | `/api/teams/{teamName}/datasets/{dataSetName}` | Delete dataset permanently (team Admin) |
 
 ### Data Loading
 
-| Method | Endpoint | Body | Description |
-|--------|----------|------|-------------|
-| POST | `AnalyzeStreamAsync/{dataSetName}` | JSON body | Analyze JSON structure, discover fields |
-| POST | `AnalyzeString/{dataSetName}` | JSON as plain text string | Analyze from string |
-| PUT | `LoadString/{dataSetName}` | JSON as plain text string | Load JSON documents |
-| PUT | `LoadStream/{dataSetName}` | JSON body | Load via stream (large files) |
-| GET | `LoadFromDatabase/{dataSetName}` | — | Reload persisted data into memory |
+| Method | Operation | Body | Description |
+|--------|-----------|------|-------------|
+| POST | `AnalyzeStreamAsync` | JSON body | Analyze JSON structure, discover fields |
+| POST | `AnalyzeString` | JSON as plain text string | Analyze from string |
+| PUT | `LoadString` | JSON as plain text string | Load JSON documents |
+| PUT | `LoadStream` | JSON body | Load via stream (large files) |
+| GET | `LoadFromDatabase` | — | Reload persisted data into memory |
 
 ### Field Configuration
 
 **Recommended — single unified endpoint:**
 
-| Method | Endpoint | Body | Description |
-|--------|----------|------|-------------|
-| PUT | `SetFieldConfiguration/{dataSetName}` | `FieldProxy[]` | Set all field roles and weights in one call |
-| GET | `GetFieldConfiguration/{dataSetName}` | — | Get current field configuration → `FieldProxy[]` |
+| Method | Operation | Body | Description |
+|--------|-----------|------|-------------|
+| PUT | `SetFieldConfiguration` | `FieldProxy[]` | Set all field roles and weights in one call |
+| GET | `GetFieldConfiguration` | — | Get current field configuration → `FieldProxy[]` |
+| PUT | `SetEmbeddableFields` | `string[]` | Mark fields embeddable (call after Analyze, before Load) |
+| GET | `GetallFields` | — | List all discovered field names → `string[]` |
+| GET | `GetSearchableFields` / `GetFilterableFields` / `GetFacetableFields` / `GetSortableFields` / `GetWordIndexingFields` | — | List field names by role → `string[]` |
 
-**Legacy separate endpoints (still available):**
-
-| Method | Endpoint | Body | Description |
-|--------|----------|------|-------------|
-| PUT | `SetSearchableFields/{dataSetName}` | `[{"Item1":"field","Item2":0}]` | Weights: 0=High, 1=Med, 2=Low |
-| PUT | `SetFilterableFields/{dataSetName}` | `["field1","field2"]` | |
-| PUT | `SetFacetableFields/{dataSetName}` | `["field1","field2"]` | |
-| PUT | `SetSortableFields/{dataSetName}` | `["field1","field2"]` | |
-| PUT | `SetWordIndexingFields/{dataSetName}` | `["field1","field2"]` | |
+The individual `SetSearchableFields` / `SetFilterableFields` / `SetFacetableFields` / `SetSortableFields` / `SetWordIndexingFields` helpers still exist but are legacy — prefer `SetFieldConfiguration`.
 
 ### Indexing and Search
 
-| Method | Endpoint | Body | Description |
-|--------|----------|------|-------------|
-| GET | `IndexDataSet/{dataSetName}` | — | Trigger indexing → `SystemStatus` |
-| POST | `Search/{dataSetName}` | `CloudQuery` | Execute search → `Result` |
-| POST | `GetJson/{dataSetName}` | `long[]` (document keys) | Retrieve full JSON records → `string[]` |
+| Method | Operation | Body | Description |
+|--------|-----------|------|-------------|
+| GET | `IndexDataSet` | — | Trigger indexing → `SystemStatus` |
+| POST | `Search` | `CloudQuery` | Full-text search → `Result` |
+| POST | `VectorSearch` | `VectorQueryProxy` | Embedding nearest-neighbour search → `EmbeddingResultEntry[]` |
+| POST | `HybridSearch` | `HybridQueryProxy` | Blended text + vector search → `EmbeddingResultEntry[]` |
+| POST | `GetJson` | `long[]` (document keys) | Retrieve full JSON records → `string[]` |
 
 ### Dynamic Document Operations
 
 Insert, update, and delete without rebuilding the index. The dataset stays ready throughout.
 
-| Method | Endpoint | Body | Description |
-|--------|----------|------|-------------|
-| POST | `{dataSetName}/insert` | `string[]` (JSON objects) | Insert multiple documents |
-| POST | `{dataSetName}/insert/{documentKey}` | JSON string | Insert single document |
-| PUT | `{dataSetName}/update` | `string[]` (JSON objects) | Update multiple documents (must include key field) |
-| PUT | `{dataSetName}/update/{documentKey}` | JSON string | Update single document |
-| PUT | `{dataSetName}/field/{documentKey}` | `UpdateFieldProxy` | Partial field update on one document |
-| DELETE | `{dataSetName}/{documentKey}` | — | Delete single document |
-| DELETE | `{dataSetName}` | `long[]` | Delete multiple documents by key |
-| DELETE | `DeleteRecordsInFilter/{dataSetName}` | `FilterProxy` | Delete all documents matching a filter |
-| PUT | `UpdateFieldInFilter/{dataSetName}` | `FilterFieldUpdateProxy` | Batch update a field on all matching documents |
+| Method | Operation | Body | Description |
+|--------|-----------|------|-------------|
+| POST | `insert` | `string[]` (JSON objects) | Insert multiple documents |
+| POST | `insert/{documentKey}` | JSON string | Insert single document |
+| PUT | `update` | `string[]` (JSON objects) | Update multiple documents (must include key field) |
+| PUT | `update/{documentKey}` | JSON string | Update single document |
+| PUT | `field/{documentKey}` | `UpdateFieldProxy` | Partial field update on one document |
+| DELETE | `documents/{documentKey}` | — | Delete single document |
+| DELETE | `documents` | `long[]` | Delete multiple documents by key |
+| DELETE | `DeleteRecordsInFilter` | `FilterProxy` | Delete all documents matching a filter |
+| PUT | `UpdateFieldInFilter` | `FilterFieldUpdateProxy` | Batch update a field on all matching documents |
 
 ### Filters and Boosts
 
-| Method | Endpoint | Body | Description |
-|--------|----------|------|-------------|
-| PUT | `CreateValueFilter/{dataSetName}` | `ValueFilterProxy` | Create equality filter → `FilterProxy` |
-| PUT | `CreateRangeFilter/{dataSetName}` | `RangeFilterProxy` | Create numeric range filter → `FilterProxy` |
-| PUT | `CombineFilters/{dataSetName}` | `CombinedFilterProxy` | Combine with AND/OR → `FilterProxy` |
-| PUT | `CreateBoost/{dataSetName}` | `BoostProxy` | Create boost rule → `BoostProxy` |
+| Method | Operation | Body | Description |
+|--------|-----------|------|-------------|
+| PUT | `CreateValueFilter` | `ValueFilterProxy` | Create equality filter → `FilterProxy` |
+| PUT | `CreateRangeFilter` | `RangeFilterProxy` | Create numeric range filter → `FilterProxy` |
+| PUT | `CombineFilters` | `CombinedFilterProxy` | Combine with AND/OR → `FilterProxy` |
+| PUT | `CreateBoost` | `BoostProxy` | Create boost rule → `BoostProxy` |
+| POST | `LoadAllFilters` | — | Pre-load all registered filters into memory |
+| GET | `GetNumberOfFilters` | — | Count cached filters → `int` |
+| DELETE | `DeleteFilter` | `FilterProxy` | Release one cached filter |
+| DELETE | `DeleteAllFilters` | — | Release all cached filters |
+
+### Lifecycle
+
+| Method | Operation | Description |
+|--------|-----------|-------------|
+| PUT | `Hibernate` | Free in-memory structures while retaining persisted data |
+| PUT | `WakeUp` | Restore a hibernated dataset from persisted state |
 
 ## Schemas
 
@@ -96,7 +133,9 @@ Insert, update, and delete without rebuilding the index. The dataset stays ready
 ```
 
 All fields are optional (null = unchanged). Available properties:
-`fieldName`, `fieldType`, `isArray`, `searchable`, `filterable`, `facetable`, `sortable`, `wordIndexing`, `embeddable`, `weight` (float), `bm25b` (float, 0–1), `bm25k1` (float, 1–2), `preloadFilters`.
+`fieldName`, `fieldType`, `isArray`, `searchable`, `filterable`, `facetable`, `sortable`, `wordIndexing`, `embeddable`, `weight` (float), `bM25b` (float, 0–1), `bM25k1` (float, 1–2), `preloadFilters`.
+
+`fieldType` and `isArray` are read-only — the server fills them in on `GetFieldConfiguration` and ignores them on `SetFieldConfiguration`.
 
 ### CloudQuery (Search Request)
 
@@ -145,7 +184,7 @@ Full with CoverageSetup (defaults shown):
     "coverPrefixSuffix": true,
     "includePatternMatches": true,
     "truncate": true,
-    "truncationScore": 255,
+    "truncationScore": 65024,
     "minWordSize": 2,
     "levenshteinMaxWordSize": 20,
     "truncateWordHitLimit": 1,
@@ -179,7 +218,7 @@ Full with CoverageSetup (defaults shown):
 - `truncationIndex` — where coverage truncation occurred (–1 if none).
 - `didTimeOut` — hit the timeout limit.
 
-Use `POST GetJson/{dataSetName}` with the array of `documentKey` values to retrieve full JSON documents.
+Use `POST .../GetJson` with the array of `documentKey` values to retrieve full JSON documents.
 
 ### Filter and Boost Models
 
@@ -208,6 +247,19 @@ Use `POST GetJson/{dataSetName}` with the array of `documentKey` values to retri
 { "fieldName": "price", "value": 49.99 }
 ```
 
+### Vector / Hybrid Models
+
+```json
+// VectorQueryProxy — embedding nearest-neighbour search
+{ "fieldName": "embedding", "vector": [0.12, -0.04, ...], "maxResults": 10, "filter": null }
+
+// HybridQueryProxy — blended text + vector (alpha: 0 = all text, 1 = all vector)
+{ "text": "wireless headphones", "embeddingField": "embedding", "vector": [0.12, ...], "alpha": 0.5, "maxNumberOfRecordsToReturn": 10 }
+
+// EmbeddingResultEntry — returned by VectorSearch / HybridSearch
+{ "documentKey": 42, "score": 0.87 }
+```
+
 ### SystemStatus
 
 ```json
@@ -216,7 +268,6 @@ Use `POST GetJson/{dataSetName}` with the array of `documentKey` values to retri
   "documentCount": 5000,
   "searchCounter": 42,
   "secondsToIndex": 2,
-  "reIndexRequired": false,
   "version": "5.0.0",
   "errorMessage": null,
   "invalidDataSetName": false,
@@ -226,18 +277,22 @@ Use `POST GetJson/{dataSetName}` with the array of `documentKey` values to retri
 
 `systemState`: `-1`=Hibernated, `0`=Created, `1`=Loading, `2`=Loaded, `3`=Indexing, `4`=Ready, `255`=Error.
 
+`GetStatus` returns `CloudSystemStatus`, which adds cloud-layer fields — most usefully `shadowBuildInProgress` (true while a background rebuild runs).
+
 ## HTTP API Workflow
 
+All steps below are under `/api/teams/{team}/datasets/{dataset}/`.
+
 ```
-1. POST  Login                                   → get JWT token
-2. PUT   CreateOrOpen/{dataSetName}              → create dataset
-3. POST  AnalyzeStreamAsync/{dataSetName}        → discover fields
-4. PUT   SetFieldConfiguration/{dataSetName}     → configure all fields in one call
-5. PUT   LoadStream/{dataSetName}                → load JSON data
-6. GET   IndexDataSet/{dataSetName}              → trigger indexing
-7. GET   GetStatus/{dataSetName}                 → poll until systemState = 4 (Ready)
-8. POST  Search/{dataSetName}                    → returns records with documentKey + score
-9. POST  GetJson/{dataSetName}                   → fetch full JSON by document keys
+1. Create a token on the IndxCloudApi website (Account → API Key)
+2. PUT   CreateOrOpen              → create dataset
+3. POST  AnalyzeStreamAsync        → discover fields
+4. PUT   SetFieldConfiguration     → configure all fields in one call
+5. PUT   LoadStream                → load JSON data
+6. GET   IndexDataSet              → trigger indexing
+7. GET   GetStatus                 → poll until systemState = 4 (Ready)
+8. POST  Search                    → returns records with documentKey + score
+9. POST  GetJson                   → fetch full JSON by document keys
 ```
 
 ## Common HTTP Patterns
@@ -271,30 +326,32 @@ Use `POST GetJson/{dataSetName}` with the array of `documentKey` values to retri
 }
 ```
 
+In the curl examples below, `BASE` is `https://your-host/api/teams/<team>/datasets/products`.
+
 **Filtered search:**
 ```bash
 # 1. Create filters
-curl -X PUT .../api/CreateValueFilter/products \
+curl -X PUT "$BASE/CreateValueFilter" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"fieldName":"category","value":"electronics"}'
 # → {"hashString":"abc123..."}
 
-curl -X PUT .../api/CreateRangeFilter/products \
+curl -X PUT "$BASE/CreateRangeFilter" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"fieldName":"price","lowerLimit":10,"upperLimit":100}'
 # → {"hashString":"def456..."}
 
 # 2. Combine (AND)
-curl -X PUT .../api/CombineFilters/products \
+curl -X PUT "$BASE/CombineFilters" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"a":{"hashString":"abc123"},"b":{"hashString":"def456"},"useAndOperation":true}'
 # → {"hashString":"combined789..."}
 
 # 3. Search with filter
-curl -X POST .../api/Search/products \
+curl -X POST "$BASE/Search" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"text":"wireless","maxNumberOfRecordsToReturn":20,"filter":{"hashString":"combined789..."}}'
@@ -302,12 +359,12 @@ curl -X POST .../api/Search/products \
 
 **Boosted search:**
 ```bash
-curl -X PUT .../api/CreateBoost/products \
+curl -X PUT "$BASE/CreateBoost" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"boostStrength":3,"filterProxy":{"hashString":"<filter-hash>"}}'
 
-curl -X POST .../api/Search/products \
+curl -X POST "$BASE/Search" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"text":"headphones","maxNumberOfRecordsToReturn":20,"enableBoost":true,"boosts":[{"boostStrength":3,"filterProxy":{"hashString":"<filter-hash>"}}]}'
@@ -315,7 +372,7 @@ curl -X POST .../api/Search/products \
 
 **Dynamic insert:**
 ```bash
-curl -X POST .../api/products/insert \
+curl -X POST "$BASE/insert" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '["{\"id\":999,\"name\":\"New Product\",\"price\":29.99}"]'
@@ -323,7 +380,7 @@ curl -X POST .../api/products/insert \
 
 **Partial field update:**
 ```bash
-curl -X PUT .../api/products/field/42 \
+curl -X PUT "$BASE/field/42" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"fieldName":"price","value":24.99}'
@@ -331,7 +388,7 @@ curl -X PUT .../api/products/field/42 \
 
 **Retrieve full documents:**
 ```bash
-curl -X POST .../api/GetJson/products \
+curl -X POST "$BASE/GetJson" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '[42, 17]'
@@ -339,6 +396,8 @@ curl -X POST .../api/GetJson/products \
 ```
 
 ## Data Loading Reference (TypeScript / Node.js)
+
+The token comes from the portal (Account → API Key); put it and your team in env vars.
 
 ```bash
 pnpm add @indxsearch/indx-types axios
@@ -348,31 +407,27 @@ pnpm add @indxsearch/indx-types axios
 import axios from 'axios';
 import * as fs from 'fs';
 
-const API = 'https://localhost:5001/api';
-
-// Authenticate
-const { data: { token } } = await axios.post(`${API}/Login`, {
-  userEmail: 'you@example.com',
-  userPassWord: 'YourPass1!'
-});
-const client = axios.create({
-  baseURL: API,
-  headers: { Authorization: `Bearer ${token}` }
-});
-
+const HOST = 'https://localhost:5001';
+const TOKEN = process.env.INDX_TOKEN!;   // created in the portal (Account → API Key)
+const TEAM = process.env.INDX_TEAM!;     // team that owns the dataset
 const dataset = 'products';
 
+const client = axios.create({
+  baseURL: `${HOST}/api/teams/${TEAM}/datasets/${dataset}`,
+  headers: { Authorization: `Bearer ${TOKEN}` }
+});
+
 // 1. Create dataset
-await client.put(`CreateOrOpen/${dataset}`, '');
+await client.put('CreateOrOpen', '');
 
 // 2. Analyze
 const jsonData = fs.readFileSync('products.json', 'utf-8');
-await client.post(`AnalyzeStreamAsync/${dataset}`, jsonData, {
+await client.post('AnalyzeStreamAsync', jsonData, {
   headers: { 'Content-Type': 'application/json' }
 });
 
 // 3. Configure fields — single call replaces all the old Set* endpoints
-await client.put(`SetFieldConfiguration/${dataset}`, [
+await client.put('SetFieldConfiguration', [
   { fieldName: 'name',        searchable: true, weight: 2.0 },
   { fieldName: 'description', searchable: true, weight: 1.0 },
   { fieldName: 'category',    filterable: true, facetable: true },
@@ -382,31 +437,27 @@ await client.put(`SetFieldConfiguration/${dataset}`, [
 // 4. Load
 const fileStream = fs.createReadStream('products.json');
 const fileStats = fs.statSync('products.json');
-await client.put(`LoadStream/${dataset}`, fileStream, {
+await client.put('LoadStream', fileStream, {
   headers: { 'Content-Type': 'application/json', 'Content-Length': fileStats.size },
   maxBodyLength: Infinity
 });
 
 // 5. Index and wait
-await client.get(`IndexDataSet/${dataset}`);
+await client.get('IndexDataSet');
 let ready = false;
 while (!ready) {
   await new Promise(r => setTimeout(r, 200));
-  const { data } = await client.get(`GetStatus/${dataset}`);
+  const { data } = await client.get('GetStatus');
   ready = data.systemState === 4;
 }
 
 // 6. Search
-const { data: result } = await client.post(`Search/${dataset}`, {
+const { data: result } = await client.post('Search', {
   text: 'wireless headphones',
   maxNumberOfRecordsToReturn: 10
 });
 
 // 7. Fetch full documents
 const keys = result.records.map((r: any) => r.documentKey);
-const { data: docs } = await client.post(`GetJson/${dataset}`, keys);
+const { data: docs } = await client.post('GetJson', keys);
 ```
-
-**Reference implementations:**
-- [IndxNodeLoader](https://github.com/indxSearch/IndxNodeLoader) — Node.js/TypeScript
-- [IndxCloudLoader](https://github.com/indxSearch/IndxCloudLoader) — C#/.NET
