@@ -33,7 +33,7 @@ Every search executes in two phases:
 
 1. **Pattern Matching** — Scans all documents for textual and structural patterns. Produces candidate results with strong recall and built-in typo tolerance. No query preprocessing needed.
 
-2. **Coverage** (enabled by default) — A collection of algorithms that detect exact and near-exact token matches (whole words, fuzzy words, joined/split words, prefixes/suffixes) in the top-K candidates (default: 500). Confirmed matches are scored 0–255 and promoted above pure pattern matches. A truncation index marks where coverage-confirmed results end.
+2. **Coverage** (enabled by default) — A collection of algorithms that detect exact and near-exact token matches (whole words, fuzzy words, joined/split words, prefixes/suffixes) in the top-K candidates (default: 500). Confirmed matches are scored 0–65535 and promoted above pure pattern matches. A truncation index marks where coverage-confirmed results end.
 
 ### Field Configuration
 

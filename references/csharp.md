@@ -231,7 +231,7 @@ query.Filter = combined;
 
 Preload filters for faster first search on large datasets:
 ```csharp
-engine.LoadFilters(new[] { categoryFilter, priceFilter }, threadCount: 2);
+engine.LoadFilters(new[] { categoryFilter, priceFilter }, maxThreadCount: 2);
 // Or: engine.LoadAllFilters(maxThreadCount: 4);
 ```
 
@@ -250,16 +250,17 @@ query.Boosts = boostArray;
 query.EnableBoost = true;
 ```
 
-**Personalized boosting with KeyFilter** — for user-specific boosting at scale:
+**Personalized boosting** — boost a user's own items by OR-ing per-key value filters into one filter, then boosting that filter:
 
 ```csharp
-KeyFilter frequentPurchases = new KeyFilter();
+Filter? frequentPurchases = null;
 foreach (long itemId in userFrequentItemIds)
 {
     Filter f = engine.CreateValueFilter("item_id", itemId)!;
-    frequentPurchases = frequentPurchases | f.KeyFilter;
+    frequentPurchases = frequentPurchases is null ? f : frequentPurchases | f;
 }
-boosts.Add(engine.CreateBoost(frequentPurchases, BoostStrength.Med));
+if (frequentPurchases is not null)
+    boosts.Add(engine.CreateBoost(frequentPurchases, BoostStrength.Med));
 ```
 
 ## Dynamic Document Operations
@@ -312,7 +313,7 @@ var cov = new CoverageSetup
     CoverPrefixSuffix  = true,    // default true — detect partial words
     IncludePatternMatches = true, // default true — set false for exact-only results
     Truncate           = true,    // default true — cut results at coverage boundary
-    TruncationScore    = 255,     // default 255
+    TruncationScore    = 65024,   // default 65024
     TruncateWordHitLimit    = 1,  // default 1
     TruncateWordHitTolerance = 0, // default 0
     MinWordSize        = 2,       // default 2
