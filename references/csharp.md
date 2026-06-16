@@ -112,7 +112,7 @@ foreach (var field in engine.GetFieldConfiguration())
 }
 ```
 
-`FieldProxy` properties: `FieldName`, `FieldType` ("String"/"Number"/"Boolean"), `IsArray`, `Searchable`, `Filterable`, `Facetable`, `Sortable`, `WordIndexing`, `Embeddable`, `Weight`, `BM25b`, `BM25k1`, `PreloadFilters`.
+`FieldProxy` properties: `FieldName`, `FieldType` ("String"/"Number"/"Boolean"), `IsArray`, `Searchable`, `Filterable`, `Facetable`, `Sortable`, `WordIndexing`, `Embeddable`, `Weight`, `BM25b`, `BM25k1`, `PreloadFilters`, `HighResolution` (also index/query N-grams with delimiters removed, so a run-together or split query matches across them).
 
 ## Field Configuration
 
