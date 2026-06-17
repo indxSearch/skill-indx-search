@@ -36,6 +36,34 @@ Team membership and roles are managed in the account portal, not via this API.
 
 All endpoints prefixed with `/api/`, JWT Bearer auth required.
 
+## Error responses
+
+| Status | Meaning | What to do |
+|--------|---------|------------|
+| `400` | Bad request — missing/invalid body, parse error, bad argument, or an **unknown dataset name** | Fix the request; don't retry as-is |
+| `401` | Missing/expired/invalid token | Refresh the bearer token |
+| `403` | Not a member of the team, the **team doesn't exist**, or your role is too low | Join the team / get a higher role (Editor/Admin); verify the team via `GET /api/me/datasets` |
+| `409` | **Wrong lifecycle state** — the dataset can't serve this operation in its current state | See below |
+
+> Note: this API does not use `404` — an unknown dataset is `400`, an unknown team is `403`.
+
+A `409 Conflict` is returned in [RFC 9457 ProblemDetails](https://www.rfc-editor.org/rfc/rfc9457) form when an operation is valid but the dataset's `systemState` can't serve it (e.g. `Search` before the dataset is `Ready`, `WakeUp` when not `Hibernated`):
+
+```json
+{
+  "status": 409,
+  "detail": "Search cannot run on dataset 'products' because it is currently Indexing. Indexing is in progress — retry once the dataset reaches Ready.",
+  "currentState": "Indexing",
+  "allowedStates": ["Ready"],
+  "retryable": true
+}
+```
+
+**Agent guidance:**
+- If `retryable` is `true` (states `Loading`/`Indexing`), poll `GetStatus` until `systemState` is `Ready` — respecting the **`Retry-After`** response header (seconds) — then retry the call.
+- If `retryable` is `false` (e.g. `Created`, `Hibernated`, `Error`), don't spin: take the corrective action in `detail`/`allowedStates` first — e.g. `Created` → `Load` then `IndexDataSet`; `Hibernated` → `WakeUp`; `Error` → read the included error and re-create/re-load.
+- A 409 is **never** fixed by resending the same request immediately — change the state, not the payload.
+
 ### Datasets
 
 | Method | Path / Operation | Description |
