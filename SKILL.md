@@ -7,6 +7,22 @@ description: Indx Search integration skill for AI coding agents. Use when buildi
 
 Indx is a high-performance search engine for structured and unstructured text. It uses pattern recognition instead of tokenizers, stemmers, or analyzers — handling typos, formatting variations, and messy input without configuration.
 
+## Versions & Compatibility — read first
+
+This skill targets **Indx v5**: IndxSearchLib **5.x** (.NET 10) and IndxCloudApi **v2** (team-scoped HTTP API, token-only auth). Everything below assumes v5.
+
+**Before giving any integration guidance, establish which version the user is on.** v4 and v5 differ in ways that silently break copy-pasted code — handing a v4 user v5 routes is a common, confusing failure. Detection signals:
+
+| Signal | v4 (legacy) | v5 (this skill) |
+|--------|-------------|-----------------|
+| C# `IndxSearchLib` NuGet | `4.x` (older .NET target) | `5.x`, .NET 10 |
+| HTTP route shape | flat — `/api/Search/{dataset}` | team-scoped — `/api/teams/{team}/datasets/{dataset}/Search` |
+| List-datasets endpoint | `/api/GetUserDatasets` → `string[]` | `/api/me/datasets` → objects with `teamName` + `role` |
+| Teams | none — datasets owned by the user | datasets owned by **teams**; every endpoint is team-scoped |
+| Auth | API password login (`/api/Login`) available | **token-only** — portal-issued JWT, no login API |
+
+If the user is on **v5**, proceed normally. If on **v4**, do **not** hand them v5 routes/APIs — either answer for their v4 setup, or (recommended) help them upgrade: see [references/migration-v4-to-v5.md](references/migration-v4-to-v5.md). When the version is ambiguous, ask one quick question (NuGet version, or whether their API URLs contain `/teams/`) before proceeding.
+
 ## When to Use Indx
 
 - Up to millions of documents where you need fast, typo-tolerant search
