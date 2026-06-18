@@ -1,6 +1,6 @@
 ---
 name: indx-search
-description: Indx Search integration skill for AI coding agents. Use when building search functionality with Indx — a high-performance search engine using pattern recognition instead of tokenizers or stemmers. Covers C# NuGet (IndxSearchLib) and HTTP API (IndxCloudApi) integration, field configuration, querying, filters, boosts, coverage tuning, and search UX patterns.
+description: Indx Search integration skill for AI coding agents. Use when building search functionality with Indx — a high-performance search engine using pattern recognition instead of tokenizers or stemmers. Covers C# NuGet (IndxSearchLib) and HTTP API (IndxCloudApi) integration, a built-in MCP server for connecting AI agents to a running instance, field configuration, querying, filters, boosts, coverage tuning, and search UX patterns.
 ---
 
 # Indx Search — Agent Skill
@@ -40,6 +40,28 @@ If the user is on **v5**, proceed normally. If on **v4**, do **not** hand them v
 **C# / .NET project** → Use the [IndxSearchLib NuGet package](https://www.nuget.org/packages/IndxSearchLib/) directly (.NET 10, v5.0.0). Embed search into your application with no external dependencies. See [references/csharp.md](references/csharp.md) for full API reference.
 
 **Any other tech stack** (Node.js, Python, Java, etc.) → Deploy the [IndxCloudApi](https://github.com/indxSearch/IndxCloudApi) HTTP API server and interact via REST (.NET 10). Recommended deployment target: Azure App Service. See [references/cloudapi-setup.md](references/cloudapi-setup.md) for setup and deployment, and [references/http-api.md](references/http-api.md) for endpoints, schemas, and data loading.
+
+**Connecting an AI agent to a running instance** → IndxCloudApi has a built-in **MCP server** — see below.
+
+## AI Agents over MCP
+
+IndxCloudApi exposes a read-only **MCP server** at `/mcp` (Streamable HTTP), so any MCP client (Claude Desktop/Code, agent frameworks) can search a running instance with no glue code. It runs in-process, so **saved boost rules apply** to agent searches and hibernated datasets auto-wake. Authenticate with an **API key as a `Bearer` token** (generate under Account → API keys; admins toggle the server under Admin → Settings).
+
+Tools:
+
+- **`list_datasets`** — datasets the token can reach, with document counts and state.
+- **`describe_dataset(team, dataset)`** — configured fields with capabilities, plus **value hints** (distinct values for facetable fields, numeric ranges), an owner description, and a sample document. Call first so the agent filters with real values.
+- **`search(team, dataset, query, filters?, limit?, fields?, broaden?, facets?)`** — ranked hits with scores. Declarative AND filters (`{field, value}` or `{field, min, max}`). **Precise by default** (`includePatternMatches=false`) so an empty result is a trustworthy no-match; pass `broaden: true` for fuzzy recall.
+- **`get_document(team, dataset, key)`** — full JSON for a key.
+
+Connect with the endpoint URL + API key. Clients without a custom-header field use the `mcp-remote` bridge:
+
+```json
+{ "mcpServers": { "indx": { "command": "npx",
+  "args": ["mcp-remote", "https://<your-host>/mcp", "--header", "Authorization: Bearer <your-api-key>"] } } }
+```
+
+Typical flow: `describe_dataset` → `search` (text + filters) → `get_document`.
 
 ## Core Concepts
 
