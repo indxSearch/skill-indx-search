@@ -38,21 +38,31 @@ All endpoints prefixed with `/api/`, JWT Bearer auth required.
 
 ## Error responses
 
-| Status | Meaning | What to do |
-|--------|---------|------------|
-| `400` | Bad request — missing/invalid body, parse error, bad argument, or an **unknown dataset name** | Fix the request; don't retry as-is |
-| `401` | Missing/expired/invalid token | Refresh the bearer token |
-| `403` | Not a member of the team, the **team doesn't exist**, or your role is too low | Join the team / get a higher role (Editor/Admin); verify the team via `GET /api/me/datasets` |
-| `409` | **Wrong lifecycle state** — the dataset can't serve this operation in its current state | See below |
+Every error is an [RFC 9457 ProblemDetails](https://www.rfc-editor.org/rfc/rfc9457) served as `application/problem+json`, carrying a machine-readable **`code`** extension — branch on `code` (or the status), never on the English `detail` text.
 
-> Note: this API does not use `404` — an unknown dataset is `400`, an unknown team is `403`.
+| Status | `code` | Meaning | What to do |
+|--------|--------|---------|------------|
+| `400` | `invalidArgument` | Missing/invalid body or argument | Fix the request; don't retry as-is |
+| `400` | `invalidDatasetName` | The dataset name itself is not allowed | Use letters/digits (no path characters) |
+| `400` | `loadFailed` | The JSON payload could not be loaded/analyzed (parse error, key-field violation) | Fix the data; the dataset's previous documents are untouched on `replace` |
+| `400` | `operationFailed` | A server-side step failed cleanly (index build, shadow build, wake-up) | Read `detail`; retrying may work after fixing the cause |
+| `401` | — | Missing/expired/invalid token (body-less) | Refresh the bearer token |
+| `401` | `invalidCredentials` / `userNotFound` | Login failed | Fix the credentials |
+| `403` | `insufficientRole` | You are a member, but your team role is too low | Get a higher role (Editor/Admin) |
+| `404` | `teamNotFound` | The team doesn't exist **or you are not a member** (identical on purpose — team names can't be enumerated) | Verify via `GET /api/me/datasets` |
+| `404` | `datasetNotFound` | The dataset doesn't exist in this team | Create it, or fix the name |
+| `404` | `documentNotFound` | The addressed document key(s) don't exist | Fix the keys; batch deletes name every missing key and apply nothing |
+| `409` | `invalidState` | **Wrong lifecycle state** — the dataset can't serve this operation right now | See below |
+| `409` | `shadowBusy` | A background rebuild (replace / re-index / field-config) is already running | Retry after it completes |
+| `500` | `internalError` | Unexpected server error; `traceId` included | Report the `traceId` |
 
-A `409 Conflict` is returned in [RFC 9457 ProblemDetails](https://www.rfc-editor.org/rfc/rfc9457) form when an operation is valid but the dataset's `systemState` can't serve it (e.g. `Search` before the dataset is `Ready`, `WakeUp` when not `Hibernated`):
+A `409 invalidState` is returned when an operation is valid but the dataset's `systemState` can't serve it (e.g. `Search` before the dataset is `Ready`, `WakeUp` when not `Hibernated`):
 
 ```json
 {
   "status": 409,
   "detail": "Search cannot run on dataset 'products' because it is currently Indexing. Indexing is in progress — retry once the dataset reaches Ready.",
+  "code": "invalidState",
   "currentState": "Indexing",
   "allowedStates": ["Ready"],
   "retryable": true
@@ -117,12 +127,12 @@ Insert, update, and delete without rebuilding the index. The dataset stays ready
 | Method | Operation | Body | Description |
 |--------|-----------|------|-------------|
 | POST | `insert` | `string[]` (JSON objects) | Insert multiple documents |
-| POST | `insert/{documentKey}` | JSON string | Insert single document |
-| PUT | `update` | `string[]` (JSON objects) | Update multiple documents (must include key field) |
-| PUT | `update/{documentKey}` | JSON string | Update single document |
+| POST | `insert/{documentKey}` | JSON string | Insert single document — the route key must equal the body's key field (mismatch → 400, nothing inserted) |
+| PUT | `update` | `string[]` (JSON objects) | Update multiple documents (must include key field) — all-or-nothing: one bad record rejects the whole batch |
+| PUT | `update/{documentKey}` | JSON string | Update single document — route key must exist (404 otherwise) and equal the body's key field (mismatch → 400) |
 | PUT | `field/{documentKey}` | `UpdateFieldProxy` | Partial field update on one document |
-| DELETE | `documents/{documentKey}` | — | Delete single document |
-| DELETE | `documents` | `long[]` | Delete multiple documents by key |
+| DELETE | `documents/{documentKey}` | — | Delete single document (404 if the key doesn't exist) |
+| DELETE | `documents` | `long[]` | Delete multiple documents by key — all-or-nothing: missing keys → 404 naming all of them, nothing deleted |
 | DELETE | `DeleteRecordsInFilter` | `FilterProxy` | Delete all documents matching a filter |
 | PUT | `UpdateFieldInFilter` | `FilterFieldUpdateProxy` | Batch update a field on all matching documents |
 
