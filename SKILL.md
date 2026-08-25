@@ -189,7 +189,7 @@ For React 19+ projects, [@indxsearch/intrface](https://github.com/indxSearch/ind
   - [IndxSearchLib NuGet](https://www.nuget.org/packages/IndxSearchLib/) — core search engine (.NET 10, v5.0.0)
 - **HTTP API**
   - [IndxCloudApi](https://github.com/indxSearch/IndxCloudApi) — self-host server template (ASP.NET Core)
-  - [OpenAPI spec](https://v5.cloud.indx.co/swagger/v1/swagger.json) — machine-readable API definition
+  - [OpenAPI spec](https://v5.cloud.indx.co/swagger/v2.0-beta/swagger.json) — machine-readable API definition
 - **Node.js / TypeScript**
   - [@indxsearch/indx-types](https://www.npmjs.com/package/@indxsearch/indx-types) — TypeScript type definitions
 - **Frontend**

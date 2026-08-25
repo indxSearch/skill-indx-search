@@ -1,6 +1,6 @@
 # skill-indx-search
 
-> Targets IndxSearchLib v5.0.0 and IndxCloudApi v2.0 (alpha).
+> Targets IndxSearchLib v5.0.0 and IndxCloudApi v2.0 (beta).
 > AI agents can sometimes produce incorrect code. Always verify generated output against the [official documentation](https://docs.indx.co).
 
 Everything your AI coding agent needs to understand, install, and integrate [Indx Search](https://indx.co) in your project.

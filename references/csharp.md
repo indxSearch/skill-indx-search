@@ -212,10 +212,12 @@ Result properties:
 
 ```csharp
 // Value filter — equality match on a filterable field
-Filter categoryFilter = engine.CreateValueFilter("category", "electronics")!;
+// The out parameter carries the reason when the call returns null (unknown field,
+// non-filterable field, type mismatch). Use `out var error` where you want to surface it.
+Filter categoryFilter = engine.CreateValueFilter("category", "electronics", out _)!;
 
 // Range filter — inclusive numeric range
-Filter priceFilter = engine.CreateRangeFilter("price", 10.0, 100.0)!;
+Filter priceFilter = engine.CreateRangeFilter("price", 10.0, 100.0, out _)!;
 
 // Combine with & (AND), | (OR), ! (NOT)
 Filter combined  = categoryFilter & priceFilter;
@@ -240,8 +242,8 @@ engine.LoadFilters(new[] { categoryFilter, priceFilter }, maxThreadCount: 2);
 Boost results matching certain criteria without excluding non-matching results. Only affects results where coverage confirms a near-exact match. `CreateBoost` pre-calculates score adjustments for all matching documents.
 
 ```csharp
-Filter yearFilter  = engine.CreateRangeFilter("year", 1980, 2025)!;
-Filter genreFilter = engine.CreateValueFilter("genre", "Documentary")!;
+Filter yearFilter  = engine.CreateRangeFilter("year", 1980, 2025, out _)!;
+Filter genreFilter = engine.CreateValueFilter("genre", "Documentary", out _)!;
 
 var boosts = new List<Boost>();
 boosts.Add(engine.CreateBoost(yearFilter & genreFilter, BoostStrength.Med));  // BoostStrength: Low, Med, High
@@ -256,7 +258,7 @@ query.EnableBoost = true;
 Filter? frequentPurchases = null;
 foreach (long itemId in userFrequentItemIds)
 {
-    Filter f = engine.CreateValueFilter("item_id", itemId)!;
+    Filter f = engine.CreateValueFilter("item_id", itemId, out _)!;
     frequentPurchases = frequentPurchases is null ? f : frequentPurchases | f;
 }
 if (frequentPurchases is not null)
@@ -360,7 +362,7 @@ var result = engine.Search(query);
 if (result.Facets != null && result.Facets.TryGetValue("price", out var histogram))
 {
     var values = histogram.Select(p => double.Parse(p.Key)).ToList();
-    var priceRange = engine.CreateRangeFilter("price", values.Min(), values.Max());
+    var priceRange = engine.CreateRangeFilter("price", values.Min(), values.Max(), out _);
 }
 ```
 
