@@ -179,7 +179,7 @@ For React 19+ projects, [@indxsearch/intrface](https://github.com/indxSearch/ind
 - **In-memory indexing** — all search indexes live in memory for speed; persistence is metadata-only
 - **Linear coverage scaling** — coverage cost scales linearly with `coverageDepth`
 - **Schemaless JSON** — nested objects supported, fields discovered automatically via `Init`/`Analyze`
-- **Two-step retrieval (C# only)** — the C# NuGet API returns keys + scores; fetch full documents separately with `GetJsonDataOfKey`. The HTTP API returns full document JSON directly in the search response
+- **Two-step retrieval** — search returns keys + scores; fetch full documents separately: `GetJsonDataOfKey` in the C# NuGet API, `POST …/documents/lookup` in the HTTP API
 
 ## Resources
 
