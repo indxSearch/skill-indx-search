@@ -13,7 +13,7 @@ Don't assume. Check:
 - **C# / NuGet**: the `IndxSearchLib` package version (`4.x` = v4, `5.x` = v5) and the project's target framework (v5 requires **.NET 10**).
 - **HTTP API**: the shape of the URLs the user calls.
   - Flat, e.g. `POST /api/Search/{dataset}` → **v4**.
-  - Team-scoped, e.g. `POST /api/teams/{team}/datasets/{dataset}/Search` → **v5**.
+  - Team-scoped, e.g. `POST /api/teams/{team}/datasets/{dataset}/search` → **v5**.
   - Quick probe: `GET /api/me/datasets` returns `200` (with `teamName`/`role` per entry) on v5; it doesn't exist on v4.
 - **Auth**: if they authenticate by POSTing email + password to a login endpoint, that's **v4**. v5 is token-only (a JWT created in the portal).
 
@@ -23,36 +23,40 @@ Don't assume. Check:
 
 ### 2a. Datasets belong to teams; every endpoint is team-scoped
 
-This is the change that breaks the most code. Every dataset operation moved under a team + dataset prefix:
+This is the change that breaks the most code. Every dataset operation moved under a team + dataset prefix, and the operation names became lowercase resource routes with proper HTTP verbs and status codes:
 
 ```
 v4:  /api/{Operation}/{dataSetName}
-v5:  /api/teams/{teamName}/datasets/{dataSetName}/{Operation}
+v5:  /api/teams/{teamName}/datasets/{dataSetName}/{operation}
 ```
 
 | Operation | v4 route | v5 route |
 |-----------|----------|----------|
-| Search | `POST /api/Search/{ds}` | `POST /api/teams/{team}/datasets/{ds}/Search` |
-| Create/open | `PUT /api/CreateOrOpen/{ds}/{cfg}` | `PUT /api/teams/{team}/datasets/{ds}/CreateOrOpen/{cfg}` |
-| Load | `PUT /api/LoadString/{ds}` | `PUT /api/teams/{team}/datasets/{ds}/LoadString` |
-| Index | `GET /api/IndexDataSet/{ds}` | `GET /api/teams/{team}/datasets/{ds}/IndexDataSet` |
-| Status | `GET /api/GetStatus/{ds}` | `GET /api/teams/{team}/datasets/{ds}/GetStatus` |
-| Get JSON | `POST /api/GetJson/{ds}` | `POST /api/teams/{team}/datasets/{ds}/GetJson` |
-| Field config | `PUT /api/SetSearchableFields/{ds}` (etc.) | `PUT /api/teams/{team}/datasets/{ds}/SetSearchableFields` (etc.) |
+| Search | `POST /api/Search/{ds}` | `POST /api/teams/{team}/datasets/{ds}/search` |
+| Create/open | `PUT /api/CreateOrOpen/{ds}/{cfg}` | `PUT /api/teams/{team}/datasets/{ds}` (the dataset route itself; optional `?configuration=<cfg>`) — `201` created / `200` existed |
+| Load | `PUT /api/LoadString/{ds}` | `POST /api/teams/{team}/datasets/{ds}/load/text` — `204` (`POST …/load` for a JSON stream) |
+| Index | `GET /api/IndexDataSet/{ds}` | `POST /api/teams/{team}/datasets/{ds}/index` — `202` (poll `GET …/status`) |
+| Status | `GET /api/GetStatus/{ds}` | `GET /api/teams/{team}/datasets/{ds}/status` |
+| Get JSON | `POST /api/GetJson/{ds}` | `POST /api/teams/{team}/datasets/{ds}/documents/lookup` |
+| Field config | `PUT /api/SetSearchableFields/{ds}` (etc.) | `PUT /api/teams/{team}/datasets/{ds}/fields/searchable` (etc.) — `204`; prefer `PUT …/fields/configuration` |
+
+Note the status-code semantics on v5: `201` on creation, `202` for the async index build, `204` (no body) for mutations, and count endpoints return `{"count": n}` instead of a naked number.
 
 The simplest migration is to compute a per-dataset base once and append the operation:
 
 ```
 const BASE = `${HOST}/api/teams/${team}/datasets/${dataset}`;
-// then BASE + "/Search", BASE + "/GetStatus", ...
+// then BASE + "/search", BASE + "/status", ...
 ```
+
+> **Pre-modernization v5 routes.** Early v5 servers exposed PascalCase operation names (`CreateOrOpen`, `GetStatus`, `IndexDataSet`, …) under the same team-scoped prefix, answering `200` for everything. Those routes still work as hidden aliases, but they are deprecated and no longer appear in OpenAPI — migrate to, and write new code against, the modern routes shown here.
 
 ### 2b. Delete routes changed shape
 
 | | v4 | v5 |
 |---|----|----|
-| Delete dataset | `DELETE /api/DeleteDataSet/{ds}` | `DELETE /api/teams/{team}/datasets/{ds}` (the dataset root) |
-| Delete document(s) | `DELETE /api/{ds}/{key}` / `DELETE /api/{ds}` | `DELETE …/datasets/{ds}/documents/{key}` / `…/documents` |
+| Delete dataset | `DELETE /api/DeleteDataSet/{ds}` | `DELETE /api/teams/{team}/datasets/{ds}` (the dataset root) — `204` |
+| Delete document(s) | `DELETE /api/{ds}/{key}` / `DELETE /api/{ds}` | `DELETE …/datasets/{ds}/documents/{key}` / `…/documents` — `204` |
 
 ### 2c. Listing datasets
 
@@ -92,7 +96,7 @@ The embedded C# API is less affected than the HTTP API, but two things matter:
 3. Swap any login call for a portal-issued bearer token (2d).
 4. Replace `GetUserDatasets` usage with `me/datasets` / `teams/{team}/datasets` and read the object shape (2c).
 5. Decide the team slug and thread it through (2e).
-6. Smoke-test: `CreateOrOpen → Analyze/Load → Index → poll GetStatus → Search`.
+6. Smoke-test: `PUT` the dataset route → `POST analyze` / `POST load` → `POST index` (202) → poll `GET status` → `POST search`.
 
 **C# embedded:**
 1. Bump the project to .NET 10 and `IndxSearchLib` 5.x.

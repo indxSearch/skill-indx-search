@@ -36,6 +36,8 @@ Team membership and roles are managed in the account portal, not via this API.
 
 All endpoints prefixed with `/api/`, JWT Bearer auth required.
 
+Success codes follow standard REST semantics: `201 Created` when a resource is created, `202 Accepted` for the asynchronous index build (poll `GET status`), `204 No Content` (empty body) for mutations, and `200` with a body for reads and searches. Count endpoints return a `{"count": n}` envelope, never a naked number.
+
 ## Error responses
 
 Every error is an [RFC 9457 ProblemDetails](https://www.rfc-editor.org/rfc/rfc9457) served as `application/problem+json`, carrying a machine-readable **`code`** extension — branch on `code` (or the status), never on the English `detail` text.
@@ -56,7 +58,7 @@ Every error is an [RFC 9457 ProblemDetails](https://www.rfc-editor.org/rfc/rfc94
 | `409` | `shadowBusy` | A background rebuild (replace / re-index / field-config) is already running | Retry after it completes |
 | `500` | `internalError` | Unexpected server error; `traceId` included | Report the `traceId` |
 
-A `409 invalidState` is returned when an operation is valid but the dataset's `systemState` can't serve it (e.g. `Search` before the dataset is `Ready`, `WakeUp` when not `Hibernated`):
+A `409 invalidState` is returned when an operation is valid but the dataset's `systemState` can't serve it (e.g. `POST search` before the dataset is `Ready`, `POST wakeup` when not `Hibernated`):
 
 ```json
 {
@@ -70,8 +72,8 @@ A `409 invalidState` is returned when an operation is valid but the dataset's `s
 ```
 
 **Agent guidance:**
-- If `retryable` is `true` (states `Loading`/`Indexing`), poll `GetStatus` until `systemState` is `Ready` — respecting the **`Retry-After`** response header (seconds) — then retry the call.
-- If `retryable` is `false` (e.g. `Created`, `Hibernated`, `Error`), don't spin: take the corrective action in `detail`/`allowedStates` first — e.g. `Created` → `Load` then `IndexDataSet`; `Hibernated` → `WakeUp`; `Error` → read the included error and re-create/re-load.
+- If `retryable` is `true` (states `Loading`/`Indexing`), poll `GET status` until `systemState` is `Ready` — respecting the **`Retry-After`** response header (seconds) — then retry the call.
+- If `retryable` is `false` (e.g. `Created`, `Hibernated`, `Error`), don't spin: take the corrective action in `detail`/`allowedStates` first — e.g. `Created` → `POST load` then `POST index`; `Hibernated` → `POST wakeup`; `Error` → read the included error and re-create/re-load.
 - A 409 is **never** fixed by resending the same request immediately — change the state, not the payload.
 
 ### Datasets
@@ -80,21 +82,20 @@ A `409 invalidState` is returned when an operation is valid but the dataset's `s
 |--------|------------------|-------------|
 | GET | `/api/me/datasets` | List every dataset across your teams → `DataSetListDto[]` (each with `teamName` + your `role`) |
 | GET | `/api/teams/{teamName}/datasets` | List datasets owned by one team → `string[]` |
-| PUT | `CreateOrOpen` | Create or open a dataset (default config) |
-| PUT | `CreateOrOpen/{configuration}` | Create with explicit config (int) |
-| GET | `GetStatus` | Get dataset status → `CloudSystemStatus` |
-| GET | `GetNumberOfJsonRecordsInDb` | Get document count → `int` |
-| DELETE | `/api/teams/{teamName}/datasets/{dataSetName}` | Delete dataset permanently (team Admin) |
+| PUT | `/api/teams/{teamName}/datasets/{dataSetName}` | Create or open a dataset — `201` created, `200` already existed. Optional `?configuration=<config>` query for an explicit config |
+| GET | `status` | Get dataset status → `CloudSystemStatus` |
+| GET | `documents/count` | Get document count → `{"count": n}` |
+| DELETE | `/api/teams/{teamName}/datasets/{dataSetName}` | Delete dataset permanently (team Admin) → `204` |
 
 ### Data Loading
 
 | Method | Operation | Body | Description |
 |--------|-----------|------|-------------|
-| POST | `AnalyzeStreamAsync` | JSON body | Analyze JSON structure, discover fields |
-| POST | `AnalyzeString` | JSON as plain text string | Analyze from string |
-| PUT | `LoadString` | JSON as plain text string | Load JSON documents |
-| PUT | `LoadStream` | JSON body | Load via stream (large files) |
-| GET | `LoadFromDatabase` | — | Reload persisted data into memory |
+| POST | `analyze` | JSON body (stream) | Analyze JSON structure, discover fields → `200` (`SystemStatus`) |
+| POST | `analyze/text` | JSON as plain text string | Analyze from string → `200` |
+| POST | `load` | JSON body (stream) | Load JSON documents (large files) → `204` |
+| POST | `load/text` | JSON as plain text string | Load from string → `204` |
+| POST | `load/from-database` | — | Reload persisted data into memory → `204` |
 
 ### Field Configuration
 
@@ -102,23 +103,23 @@ A `409 invalidState` is returned when an operation is valid but the dataset's `s
 
 | Method | Operation | Body | Description |
 |--------|-----------|------|-------------|
-| PUT | `SetFieldConfiguration` | `FieldProxy[]` | Set all field roles and weights in one call |
-| GET | `GetFieldConfiguration` | — | Get current field configuration → `FieldProxy[]` |
-| PUT | `SetEmbeddableFields` | `string[]` | Mark fields embeddable (call after Analyze, before Load) |
-| GET | `GetallFields` | — | List all discovered field names → `string[]` |
-| GET | `GetSearchableFields` / `GetFilterableFields` / `GetFacetableFields` / `GetSortableFields` / `GetWordIndexingFields` | — | List field names by role → `string[]` |
+| PUT | `fields/configuration` | `FieldProxy[]` | Set all field roles and weights in one call → `204` |
+| GET | `fields/configuration` | — | Get current field configuration → `FieldProxy[]` |
+| PUT | `fields/embeddable` | `string[]` | Mark fields embeddable (call after analyze, before load) → `204` |
+| GET | `fields` | — | List all discovered field names → `string[]` |
+| GET | `fields/searchable` / `fields/filterable` / `fields/facetable` / `fields/sortable` / `fields/word-indexing` | — | List field names by role → `string[]` |
 
-The individual `SetSearchableFields` / `SetFilterableFields` / `SetFacetableFields` / `SetSortableFields` / `SetWordIndexingFields` helpers still exist but are legacy — prefer `SetFieldConfiguration`.
+The individual role setters `PUT fields/searchable` / `fields/filterable` / `fields/facetable` / `fields/sortable` / `fields/word-indexing` also exist (`string[]` body → `204`) — prefer `PUT fields/configuration`.
 
 ### Indexing and Search
 
 | Method | Operation | Body | Description |
 |--------|-----------|------|-------------|
-| GET | `IndexDataSet` | — | Trigger indexing → `SystemStatus` |
-| POST | `Search` | `CloudQuery` | Full-text search → `Result` |
-| POST | `VectorSearch` | `VectorQueryProxy` | Embedding nearest-neighbour search → `EmbeddingResultEntry[]` |
-| POST | `HybridSearch` | `HybridQueryProxy` | Blended text + vector search → `EmbeddingResultEntry[]` |
-| POST | `GetJson` | `long[]` (document keys) | Retrieve full JSON records → `string[]` |
+| POST | `index` | — | Start indexing → `202 Accepted` with a `SystemStatus` body; poll `GET status` until Ready |
+| POST | `search` | `CloudQuery` | Full-text search → `Result` |
+| POST | `search/vector` | `VectorQueryProxy` | Embedding nearest-neighbour search → `EmbeddingResultEntry[]` |
+| POST | `search/hybrid` | `HybridQueryProxy` | Blended text + vector search → `EmbeddingResultEntry[]` |
+| POST | `documents/lookup` | `long[]` (document keys) | Retrieve full JSON records → `string[]` |
 
 ### Dynamic Document Operations
 
@@ -126,35 +127,35 @@ Insert, update, and delete without rebuilding the index. The dataset stays ready
 
 | Method | Operation | Body | Description |
 |--------|-----------|------|-------------|
-| POST | `insert` | `string[]` (JSON objects) | Insert multiple documents |
-| POST | `insert/{documentKey}` | JSON string | Insert single document — the route key must equal the body's key field (mismatch → 400, nothing inserted) |
-| PUT | `update` | `string[]` (JSON objects) | Update multiple documents (must include key field) — all-or-nothing: one bad record rejects the whole batch |
-| PUT | `update/{documentKey}` | JSON string | Update single document — route key must exist (404 otherwise) and equal the body's key field (mismatch → 400) |
-| PUT | `field/{documentKey}` | `UpdateFieldProxy` | Partial field update on one document |
-| DELETE | `documents/{documentKey}` | — | Delete single document (404 if the key doesn't exist) |
-| DELETE | `documents` | `long[]` | Delete multiple documents by key — all-or-nothing: missing keys → 404 naming all of them, nothing deleted |
-| DELETE | `DeleteRecordsInFilter` | `FilterProxy` | Delete all documents matching a filter |
-| PUT | `UpdateFieldInFilter` | `FilterFieldUpdateProxy` | Batch update a field on all matching documents |
+| POST | `documents` | `string[]` (JSON objects) | Insert multiple documents → `201` |
+| POST | `documents/{documentKey}` | JSON string | Insert single document — the route key must equal the body's key field (mismatch → 400, nothing inserted) → `201` |
+| PUT | `documents` | `string[]` (JSON objects) | Update multiple documents (must include key field) — all-or-nothing: one bad record rejects the whole batch → `204` |
+| PUT | `documents/{documentKey}` | JSON string | Update single document — route key must exist (404 otherwise) and equal the body's key field (mismatch → 400) → `204` |
+| PATCH | `documents/{documentKey}` | `UpdateFieldProxy` | Partial single-field update on one document → `204` |
+| DELETE | `documents/{documentKey}` | — | Delete single document (404 if the key doesn't exist) → `204` |
+| DELETE | `documents` | `long[]` | Delete multiple documents by key — all-or-nothing: missing keys → 404 naming all of them, nothing deleted → `204` |
+| POST | `documents/delete-by-filter` | `FilterProxy` | Delete all documents matching a filter → `204` |
+| POST | `documents/update-by-filter` | `FilterFieldUpdateProxy` | Batch update a field on all matching documents → `200` (`{"count": n}` — documents updated) |
 
 ### Filters and Boosts
 
 | Method | Operation | Body | Description |
 |--------|-----------|------|-------------|
-| PUT | `CreateValueFilter` | `ValueFilterProxy` | Create equality filter → `FilterProxy` |
-| PUT | `CreateRangeFilter` | `RangeFilterProxy` | Create numeric range filter → `FilterProxy` |
-| PUT | `CombineFilters` | `CombinedFilterProxy` | Combine with AND/OR → `FilterProxy` |
-| PUT | `CreateBoost` | `BoostProxy` | Create boost rule → `BoostProxy` |
-| POST | `LoadAllFilters` | — | Pre-load all registered filters into memory |
-| GET | `GetNumberOfFilters` | — | Count cached filters → `int` |
-| DELETE | `DeleteFilter` | `FilterProxy` | Release one cached filter |
-| DELETE | `DeleteAllFilters` | — | Release all cached filters |
+| POST | `filters/value` | `ValueFilterProxy` | Create equality filter → `FilterProxy` |
+| POST | `filters/range` | `RangeFilterProxy` | Create numeric range filter → `FilterProxy` |
+| POST | `filters/combine` | `CombinedFilterProxy` | Combine with AND/OR → `FilterProxy` |
+| POST | `boosts/from-filter` | `BoostProxy` | Create boost rule → `BoostProxy` |
+| POST | `filters/load` | — | Pre-load all registered filters into memory → `204` |
+| GET | `filters/count` | — | Count cached filters → `{"count": n}` |
+| POST | `filters/delete` | `FilterProxy` | Release one cached filter → `204` (POST, not DELETE, because the filter key travels in the body) |
+| DELETE | `filters` | — | Release all cached filters → `204` |
 
 ### Lifecycle
 
 | Method | Operation | Description |
 |--------|-----------|-------------|
-| PUT | `Hibernate` | Free in-memory structures while retaining persisted data |
-| PUT | `WakeUp` | Restore a hibernated dataset from persisted state |
+| POST | `hibernate` | Free in-memory structures while retaining persisted data → `204` |
+| POST | `wakeup` | Restore a hibernated dataset from persisted state → `204` |
 
 ## Schemas
 
@@ -173,7 +174,7 @@ Insert, update, and delete without rebuilding the index. The dataset stays ready
 All fields are optional (null = unchanged). Available properties:
 `fieldName`, `fieldType`, `isArray`, `searchable`, `filterable`, `facetable`, `sortable`, `wordIndexing`, `embeddable`, `weight` (float), `bM25b` (float, 0–1), `bM25k1` (float, 1–2), `preloadFilters`, `highResolution` (also index/query N-grams with delimiters removed, so a run-together or split query matches across them).
 
-`fieldType` and `isArray` are read-only — the server fills them in on `GetFieldConfiguration` and ignores them on `SetFieldConfiguration`.
+`fieldType` and `isArray` are read-only — the server fills them in on `GET fields/configuration` and ignores them on `PUT fields/configuration`.
 
 ### CloudQuery (Search Request)
 
@@ -256,7 +257,7 @@ Full with CoverageSetup (defaults shown):
 - `truncationIndex` — where coverage truncation occurred (–1 if none).
 - `didTimeOut` — hit the timeout limit.
 
-Use `POST .../GetJson` with the array of `documentKey` values to retrieve full JSON documents.
+Use `POST .../documents/lookup` with the array of `documentKey` values to retrieve full JSON documents.
 
 ### Filter and Boost Models
 
@@ -294,7 +295,7 @@ Use `POST .../GetJson` with the array of `documentKey` values to retrieve full J
 // HybridQueryProxy — blended text + vector (alpha: 0 = all text, 1 = all vector)
 { "text": "wireless headphones", "embeddingField": "embedding", "vector": [0.12, ...], "alpha": 0.5, "maxNumberOfRecordsToReturn": 10 }
 
-// EmbeddingResultEntry — returned by VectorSearch / HybridSearch
+// EmbeddingResultEntry — returned by search/vector and search/hybrid
 { "documentKey": 42, "score": 0.87 }
 ```
 
@@ -315,7 +316,7 @@ Use `POST .../GetJson` with the array of `documentKey` values to retrieve full J
 
 `systemState`: `-1`=Hibernated, `0`=Created, `1`=Loading, `2`=Loaded, `3`=Indexing, `4`=Ready, `255`=Error.
 
-`GetStatus` returns `CloudSystemStatus`, which adds cloud-layer fields — most usefully `shadowBuildInProgress` (true while a background rebuild runs).
+`GET status` returns `CloudSystemStatus`, which adds cloud-layer fields — most usefully `shadowBuildInProgress` (true while a background rebuild runs).
 
 ## HTTP API Workflow
 
@@ -323,14 +324,14 @@ All steps below are under `/api/teams/{team}/datasets/{dataset}/`.
 
 ```
 1. Create a token on the IndxCloudApi website (Account → API Key)
-2. PUT   CreateOrOpen              → create dataset
-3. POST  AnalyzeStreamAsync        → discover fields
-4. PUT   SetFieldConfiguration     → configure all fields in one call
-5. PUT   LoadStream                → load JSON data
-6. GET   IndexDataSet              → trigger indexing
-7. GET   GetStatus                 → poll until systemState = 4 (Ready)
-8. POST  Search                    → returns records with documentKey + score
-9. POST  GetJson                   → fetch full JSON by document keys
+2. PUT   (the dataset route itself) → create dataset (201 created / 200 existed)
+3. POST  analyze                   → discover fields
+4. PUT   fields/configuration      → configure all fields in one call (204)
+5. POST  load                      → load JSON data (204)
+6. POST  index                     → start indexing (202, SystemStatus body)
+7. GET   status                    → poll until systemState = 4 (Ready)
+8. POST  search                    → returns records with documentKey + score
+9. POST  documents/lookup          → fetch full JSON by document keys
 ```
 
 ## Common HTTP Patterns
@@ -369,27 +370,27 @@ In the curl examples below, `BASE` is `https://your-host/api/teams/<team>/datase
 **Filtered search:**
 ```bash
 # 1. Create filters
-curl -X PUT "$BASE/CreateValueFilter" \
+curl -X POST "$BASE/filters/value" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"fieldName":"category","value":"electronics"}'
 # → {"hashString":"abc123..."}
 
-curl -X PUT "$BASE/CreateRangeFilter" \
+curl -X POST "$BASE/filters/range" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"fieldName":"price","lowerLimit":10,"upperLimit":100}'
 # → {"hashString":"def456..."}
 
 # 2. Combine (AND)
-curl -X PUT "$BASE/CombineFilters" \
+curl -X POST "$BASE/filters/combine" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"a":{"hashString":"abc123"},"b":{"hashString":"def456"},"useAndOperation":true}'
 # → {"hashString":"combined789..."}
 
 # 3. Search with filter
-curl -X POST "$BASE/Search" \
+curl -X POST "$BASE/search" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"text":"wireless","maxNumberOfRecordsToReturn":20,"filter":{"hashString":"combined789..."}}'
@@ -397,12 +398,12 @@ curl -X POST "$BASE/Search" \
 
 **Boosted search:**
 ```bash
-curl -X PUT "$BASE/CreateBoost" \
+curl -X POST "$BASE/boosts/from-filter" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"boostStrength":3,"filterProxy":{"hashString":"<filter-hash>"}}'
 
-curl -X POST "$BASE/Search" \
+curl -X POST "$BASE/search" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"text":"headphones","maxNumberOfRecordsToReturn":20,"enableBoost":true,"boosts":[{"boostStrength":3,"filterProxy":{"hashString":"<filter-hash>"}}]}'
@@ -410,23 +411,25 @@ curl -X POST "$BASE/Search" \
 
 **Dynamic insert:**
 ```bash
-curl -X POST "$BASE/insert" \
+curl -X POST "$BASE/documents" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '["{\"id\":999,\"name\":\"New Product\",\"price\":29.99}"]'
+# → 201 Created
 ```
 
 **Partial field update:**
 ```bash
-curl -X PUT "$BASE/field/42" \
+curl -X PATCH "$BASE/documents/42" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"fieldName":"price","value":24.99}'
+# → 204 No Content
 ```
 
 **Retrieve full documents:**
 ```bash
-curl -X POST "$BASE/GetJson" \
+curl -X POST "$BASE/documents/lookup" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '[42, 17]'
@@ -455,47 +458,47 @@ const client = axios.create({
   headers: { Authorization: `Bearer ${TOKEN}` }
 });
 
-// 1. Create dataset
-await client.put('CreateOrOpen', '');
+// 1. Create dataset — PUT the dataset route itself (201 created / 200 existed)
+await client.put('', '');
 
 // 2. Analyze
 const jsonData = fs.readFileSync('products.json', 'utf-8');
-await client.post('AnalyzeStreamAsync', jsonData, {
+await client.post('analyze', jsonData, {
   headers: { 'Content-Type': 'application/json' }
 });
 
-// 3. Configure fields — single call replaces all the old Set* endpoints
-await client.put('SetFieldConfiguration', [
+// 3. Configure fields — single call replaces the per-role setters (204)
+await client.put('fields/configuration', [
   { fieldName: 'name',        searchable: true, weight: 2.0 },
   { fieldName: 'description', searchable: true, weight: 1.0 },
   { fieldName: 'category',    filterable: true, facetable: true },
   { fieldName: 'price',       filterable: true, sortable: true },
 ]);
 
-// 4. Load
+// 4. Load (204)
 const fileStream = fs.createReadStream('products.json');
 const fileStats = fs.statSync('products.json');
-await client.put('LoadStream', fileStream, {
+await client.post('load', fileStream, {
   headers: { 'Content-Type': 'application/json', 'Content-Length': fileStats.size },
   maxBodyLength: Infinity
 });
 
-// 5. Index and wait
-await client.get('IndexDataSet');
+// 5. Index (202 Accepted) and poll status until Ready
+await client.post('index');
 let ready = false;
 while (!ready) {
   await new Promise(r => setTimeout(r, 200));
-  const { data } = await client.get('GetStatus');
+  const { data } = await client.get('status');
   ready = data.systemState === 4;
 }
 
 // 6. Search
-const { data: result } = await client.post('Search', {
+const { data: result } = await client.post('search', {
   text: 'wireless headphones',
   maxNumberOfRecordsToReturn: 10
 });
 
 // 7. Fetch full documents
 const keys = result.records.map((r: any) => r.documentKey);
-const { data: docs } = await client.post('GetJson', keys);
+const { data: docs } = await client.post('documents/lookup', keys);
 ```

@@ -209,4 +209,4 @@ The databases are stored at `./IndxData/` relative to the app. On Azure App Serv
 
 ## Request Size Limits
 
-The server accepts request bodies up to **2GB** — supports loading large JSON datasets via `LoadString` and `LoadStream`.
+The server accepts request bodies up to **2GB** — supports loading large JSON datasets via `POST …/load` and `POST …/load/text`.

@@ -16,7 +16,7 @@ This skill targets **Indx v5**: IndxSearchLib **5.x** (.NET 10) and IndxCloudApi
 | Signal | v4 (legacy) | v5 (this skill) |
 |--------|-------------|-----------------|
 | C# `IndxSearchLib` NuGet | `4.x` (older .NET target) | `5.x`, .NET 10 |
-| HTTP route shape | flat — `/api/Search/{dataset}` | team-scoped — `/api/teams/{team}/datasets/{dataset}/Search` |
+| HTTP route shape | flat — `/api/Search/{dataset}` | team-scoped — `/api/teams/{team}/datasets/{dataset}/search` |
 | List-datasets endpoint | `/api/GetUserDatasets` → `string[]` | `/api/me/datasets` → objects with `teamName` + `role` |
 | Teams | none — datasets owned by the user | datasets owned by **teams**; every endpoint is team-scoped |
 | Auth | API password login (`/api/Login`) available | **token-only** — portal-issued JWT, no login API |
@@ -95,7 +95,7 @@ Note: Weights affect pattern recognition directly. A short text pattern in a lon
 
 ### Filters Must Be Server-Side
 
-Never filter results client-side after a search. The search only returns a limited number of results (`maxNumberOfRecordsToReturn`), so client-side filtering on that subset will miss documents. Always use `CreateValueFilter` / `CreateRangeFilter` / `CombineFilters` and pass the filter in the query (`query.Filter` in C#, `CloudQuery.filter` in HTTP) so the server applies the filter during search.
+Never filter results client-side after a search. The search only returns a limited number of results (`maxNumberOfRecordsToReturn`), so client-side filtering on that subset will miss documents. Always create filters server-side (`CreateValueFilter` / `CreateRangeFilter` / `CombineFilters` in C#; `POST filters/value` / `filters/range` / `filters/combine` over HTTP) and pass the filter in the query (`query.Filter` in C#, `CloudQuery.filter` in HTTP) so the server applies the filter during search.
 
 ### Search Behavior Guidance
 
@@ -164,7 +164,7 @@ Show all active filters (value filters and range filters) as removable chips abo
 
 ### Two-step result display (C# only)
 
-The C# NuGet API returns document keys and scores (not full documents) in `result.Records`. Fetch full JSON separately via `engine.GetJsonDataOfKey(key)`. The HTTP API returns document keys too — use `POST GetJson/{dataset}` with the array of keys to retrieve full JSON. Only fetch the fields you need for display — keep the result list lightweight.
+The C# NuGet API returns document keys and scores (not full documents) in `result.Records`. Fetch full JSON separately via `engine.GetJsonDataOfKey(key)`. The HTTP API returns document keys too — use `POST …/documents/lookup` with the array of keys to retrieve full JSON. Only fetch the fields you need for display — keep the result list lightweight.
 
 ### React component library
 
