@@ -136,6 +136,43 @@ Indx accepts JSON arrays of objects. Nested fields are supported (schemaless):
 
 Nested fields use dot notation: `specs.weight`, `specs.color`.
 
+### Arrays of objects
+
+Dot notation continues straight through an array — the elements are addressed by
+position, not by name, so they add nothing to the field name:
+
+```json
+[
+  { "id": 1, "title": "Product A",
+    "prices": [ { "amount": 299, "currency": { "code": "NOK" } },
+                { "amount": 25,  "currency": { "code": "EUR" } } ] }
+]
+```
+
+That gives the fields `prices.amount` and `prices.currency.code`, each holding
+one value per array element. This is the usual shape for prices, variants and
+localized strings in commerce exports.
+
+### Files that wrap their documents
+
+Many exporters wrap the documents in an object carrying metadata rather than
+handing you a bare array:
+
+```json
+{ "exportedAt": "2026-05-11T09:18:09Z", "count": 16761,
+  "products": [ { "id": 1, "title": "Product A" }, … ] }
+```
+
+Feed it in as it is. `Init`/`Analyze` locates the documents itself — the
+outermost array of objects wins, and the envelope's own keys (`exportedAt`,
+`count`) are not treated as fields. There is nothing to configure and no
+conversion step; a plain array is of course still read exactly as before.
+
+One thing to know: a *single* document handed over on its own, whose only array
+is an array of objects, looks the same from outside — `{ "orderId": 1, "lines":
+[…] }` will be read as its lines. Wrap it in an array if you mean it as one
+document.
+
 ---
 
 ## Search UX Patterns
