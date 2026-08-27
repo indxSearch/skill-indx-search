@@ -79,22 +79,31 @@ Init(stream) → SetFieldConfiguration(...) → Load(stream) → Index() → Sea
 
 `Init`, `Load`, and `Index` all accept an optional `ProcessMonitor` for non-blocking execution:
 
+`Init`, `Load` and `LoadAllFilters` dispatch to a background thread and return
+immediately, with the monitor already running — safe to poll or wait on the next line.
+`Index` runs on the calling thread. Pick one way to wait; they are alternatives, not steps.
+
 ```csharp
 var monitor = new ProcessMonitor();
 monitor.TimeoutSeconds = 120;
 
 engine.Load(fstream, monitor);
 
-// Poll or wait
+// Either poll for progress...
 while (monitor.IsRunning)
     Thread.Sleep(200);
 
-monitor.WaitForCompletion();
-// or: await monitor.WaitForCompletionAsync();
+// ...or wait, synchronously or asynchronously - not both.
+// monitor.WaitForCompletion();
+// await monitor.WaitForCompletionAsync();
 
 if (!monitor.Succeeded)
     Console.WriteLine($"Error: {monitor.ErrorMessage}");
 ```
+
+One monitor per operation; reusing one while it runs throws. `WaitForCompletionAsync` on a
+monitor never given to an operation completes immediately — that means "nothing to wait
+for", not "succeeded", so always check `Succeeded`.
 
 Key properties: `IsRunning`, `ProgressPercent` (0–100), `Succeeded`, `ErrorMessage`, `DidTimeOut`, `IsCompleted`.
 
