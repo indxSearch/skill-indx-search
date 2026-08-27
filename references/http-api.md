@@ -255,7 +255,10 @@ Full with CoverageSetup (defaults shown):
 - `records` — `[{ documentKey, score }]`. Score is 0–65535 (ushort); coverage hits always score higher than pattern-only matches.
 - `facets` — only populated when `enableFacets: true`.
 - `truncationIndex` — where coverage truncation occurred (–1 if none).
-- `didTimeOut` — hit the timeout limit.
+- `didTimeOut` — the search could not be *served*, as opposed to serving and finding nothing: either it
+  hit the timeout limit, or the engine was not `Ready`. Over HTTP the not-Ready case normally surfaces
+  as `409` with the current state before it gets this far, so on this surface the flag almost always
+  means the timeout. Either way, do not render an empty result with this flag set as "no results".
 
 Use `POST .../documents/lookup` with the array of `documentKey` values to retrieve full JSON documents.
 

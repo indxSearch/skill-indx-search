@@ -206,7 +206,11 @@ Result properties:
 - `Facets` — `Dictionary<string, KeyValuePair<string, int>[]>` (field → value/count pairs)
 - `TruncationIndex` — index where coverage truncation occurred (–1 if no truncation)
 - `TruncationScore` — score value at the truncation point
-- `DidTimeOut` — `true` if search exceeded the timeout
+- `DidTimeOut` — `true` when the search could not be **served**, rather than served and found nothing.
+  Two causes: it exceeded the timeout, or the engine was not `Ready` (loading, indexing, hibernated).
+  Check it before showing "no results" — a dataset being reloaded would otherwise look like a dataset
+  with nothing in it. A mistake in the call (null query, empty text with facets off) returns an empty
+  result *without* the flag.
 
 ## Filters
 
