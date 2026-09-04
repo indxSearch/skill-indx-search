@@ -150,6 +150,27 @@ Insert, update, and delete without rebuilding the index. The dataset stays ready
 | POST | `filters/delete` | `FilterProxy` | Release one cached filter → `204` (POST, not DELETE, because the filter key travels in the body) |
 | DELETE | `filters` | — | Release all cached filters → `204` |
 
+### Synonyms
+
+| Method | Operation | Body | Description |
+|--------|-----------|------|-------------|
+| GET | `synonyms` | — | The dataset's synonym list → `200` (a literal `null` when it has none) |
+| PUT | `synonyms` | `SynonymList` or `null` | Replace the list; `null` removes it; editor role → `204` |
+
+Synonyms expand queries at search time (matching an entry appends its terms to the query text before scoring), so a `PUT` applies on the very next search — no re-indexing, no state change. Body shape:
+
+```json
+{
+  "name": "medical-terms",
+  "entries": [
+    { "direction": 0, "terms": ["geriatri", "geriatrisk", "geriatriske"] },
+    { "direction": 1, "source": "hms", "terms": ["helse, miljø og sikkerhet"] }
+  ]
+}
+```
+
+`direction`: `0` = Multidirectional (all terms equivalent — any of them triggers the group), `1` = OneWay (only `source` expands, into `terms` — for acronyms). Multi-word terms match as whole phrases. Note that expansion lengthens the query text, which lowers Coverage scores proportionally.
+
 ### Lifecycle
 
 | Method | Operation | Description |

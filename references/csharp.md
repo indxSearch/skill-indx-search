@@ -278,6 +278,31 @@ if (frequentPurchases is not null)
     boosts.Add(engine.CreateBoost(frequentPurchases, BoostStrength.Med));
 ```
 
+## Synonyms
+
+Attach a `SynonymList` to widen searches: when a query matches an entry, the entry's terms are appended to the query text before scoring. Search-time only — nothing is re-indexed, and the engine works on its own copy of the query, so the caller's `Query` is never modified.
+
+```csharp
+engine.SynonymList = new SynonymList
+{
+    Entries =
+    [
+        // Multidirectional: all terms equivalent — matching any of them pulls in the group.
+        new SynonymEntry { Direction = SynonymDirection.Multidirectional, Terms = ["geriatri", "geriatrisk", "geriatriske"] },
+        // OneWay: only Source expands, into Terms (acronyms) — matching a term does NOT pull in Source.
+        new SynonymEntry { Direction = SynonymDirection.OneWay, Source = "hms", Terms = ["helse, miljø og sikkerhet"] },
+    ]
+};
+
+engine.SaveSynonyms("synonyms.json");   // serialize the current list to a file
+engine.LoadSynonyms("synonyms.json");   // load and apply a saved list
+engine.SynonymList = null;              // search without synonyms again
+```
+
+- Multi-word terms are matched as whole phrases, and matching splits on the engine's own delimiters, so punctuation (`geriatri,`) still triggers an entry.
+- Expansion lengthens the query text, which lowers Coverage scores proportionally — measure the net effect before shipping a large list.
+- After mutating `Entries` in place, call `SynonymList.Invalidate()`; assigning a new list or a new `Entries` collection handles it automatically.
+
 ## Dynamic Document Operations
 
 Insert, update, and delete documents without rebuilding the index. The engine stays in Ready state throughout.

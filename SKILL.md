@@ -1,6 +1,6 @@
 ---
 name: indx-search
-description: Indx Search integration skill for AI coding agents. Use when building search functionality with Indx — a high-performance search engine using pattern recognition instead of tokenizers or stemmers. Covers C# NuGet (IndxSearchLib) and HTTP API (IndxCloudApi) integration, a built-in MCP server for connecting AI agents to a running instance, field configuration, querying, filters, boosts, coverage tuning, and search UX patterns.
+description: Indx Search integration skill for AI coding agents. Use when building search functionality with Indx — a high-performance search engine using pattern recognition instead of tokenizers or stemmers. Covers C# NuGet (IndxSearchLib) and HTTP API (IndxCloudApi) integration, a built-in MCP server for connecting AI agents to a running instance, field configuration, querying, filters, boosts, synonyms, coverage tuning, and search UX patterns.
 ---
 
 # Indx Search — Agent Skill
@@ -53,6 +53,7 @@ Tools:
 - **`describe_dataset(team, dataset)`** — configured fields with capabilities, plus **value hints** (distinct values for facetable fields, numeric ranges), an owner description, and a sample document. Call first so the agent filters with real values.
 - **`search(team, dataset, query, filters?, limit?, fields?, broaden?, facets?)`** — ranked hits with scores. Declarative AND filters (`{field, value}` or `{field, min, max}`). **Precise by default** (`includePatternMatches=false`) so an empty result is a trustworthy no-match; pass `broaden: true` for fuzzy recall.
 - **`get_document(team, dataset, key)`** — full JSON for a key.
+- **`get_synonyms(team, dataset)`** — the dataset's synonym list, or null when it has none. Explains why a search matched more than its literal words (queries expand through the list before scoring).
 
 Connect with the endpoint URL + API key. Clients without a custom-header field use the `mcp-remote` bridge:
 
