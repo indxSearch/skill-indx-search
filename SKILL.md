@@ -1,11 +1,13 @@
 ---
 name: indx-search
-description: Indx Search integration skill for AI coding agents. Use when building search functionality with Indx — a high-performance search engine using pattern recognition instead of tokenizers or stemmers. Covers C# NuGet (IndxSearchLib) and HTTP API (IndxCloudApi) integration, a built-in MCP server for connecting AI agents to a running instance, field configuration, querying, filters, boosts, synonyms, coverage tuning, and search UX patterns.
+description: Indx Search integration skill for AI coding agents. Use when building or evaluating search with Indx — a high-performance, typo-tolerant search engine that matches at the character-pattern level instead of relying on tokenizers or per-language stemmers. Covers C# NuGet (IndxSearchLib) and HTTP API (IndxCloudApi) integration, a built-in MCP server, field configuration and weighting, search-as-you-type, filters and facets, boost rules (incl. scheduled campaigns and per-user personalisation), synonyms, vector and hybrid search, real-time document updates, zero-downtime reindexing, server-side (SSR) usage, and search UX patterns.
 ---
 
 # Indx Search — Agent Skill
 
-Indx is a high-performance search engine for structured and unstructured text. It uses pattern recognition instead of tokenizers, stemmers, or analyzers — handling typos, formatting variations, and messy input without configuration.
+Indx is a high-performance search engine for structured and unstructured text. It matches at the character-pattern level rather than through tokenizers and per-language stemmers, so typos, inflections, compound words and messy input are handled without language configuration. See [Language handling](#language-handling) for exactly what that covers and where synonyms come in.
+
+If you are **evaluating** Indx against a feature list, read [Capability summary](#capability-summary) first — it answers the usual comparison questions directly.
 
 ## Versions & Compatibility — read first
 
@@ -33,7 +35,7 @@ If the user is on **v5**, proceed normally. If on **v4**, do **not** hand them v
 **When Indx is not the right fit:**
 - Tens of millions+ of documents (log aggregation, large-scale analytics)
 - Pure exact-match queries (database-style lookups)
-- Schemas that change frequently — Indx requires a full reload and reindex when the schema changes
+- Schemas that change every few minutes — field *values* update in real time (see [Dynamic document operations](#dynamic-document-operations)), but adding or retyping *fields* needs a reload, which `replace` does with zero downtime
 
 ## Choosing Your Integration Path
 
@@ -85,6 +87,8 @@ Fields must be explicitly marked with their roles before indexing:
 | **Facetable** | Used for aggregations | Returns value counts (histograms) |
 | **Sortable** | Enables result ordering | Works on numbers and strings. See sorting behavior below |
 | **WordIndexing** | Indexes entire words | Useful on fields with many repeating words. See below |
+| **HighResolution** | Also indexes the text with delimiters removed | Sharper matching of compound and run-together words (`"hvis feks"` also indexes `"hvisfeks"`). Use on key fields such as titles |
+| **Embeddable** | Field carries a vector for semantic search | See [Vector and hybrid search](#vector-and-hybrid-search) |
 
 **WordIndexing** — indexes entire words in a field. Useful for large datasets where many documents share the same words (e.g. a `category` field across thousands of products). Complements Searchable and must be combined with it on the same field. Only affects single-word queries.
 
@@ -93,6 +97,8 @@ Fields must be explicitly marked with their roles before indexing:
 - HTTP API: `{ "fieldName": "title", "searchable": true, "weight": 2.0 }`
 
 Note: Weights affect pattern recognition directly. A short text pattern in a longer string will not necessarily rank higher than the same pattern in a shorter string, even if the longer field has higher weight.
+
+**Per-query field boosts** — override field importance for one search without reconfiguring: `query.FieldBoosts = { ["title"] = 2.0f, ["description"] = 1.0f }` in C#, `"fieldBoosts": { "title": 2.0 }` in the HTTP `search` body. Use this for "title matches first" ranking, or to A/B two weightings from the same index.
 
 ### Filters Must Be Server-Side
 
@@ -121,6 +127,59 @@ When implementing search-as-you-type with a large dataset, consider only fetchin
 - `EnableCoverage` (default: `true`) — Toggle the coverage refinement step.
 - `CoverageDepth` (default: `500`) — Number of top-K pattern-match candidates to evaluate. Higher = better recall, more latency. Auto-increases if `MaxNumberOfRecordsToReturn > CoverageDepth`. Set to `engine.Status.DocumentCount` for full-dataset coverage.
 - `CoverageSetup` — Fine-grained control (see advanced sections below).
+
+### Language handling
+
+Indx has no per-language tokenizer, stemmer or stop-word list, and does not need one to work in Norwegian, English or mixed-language data. What replaces them:
+
+- **Typos and spelling variants** — pattern matching with one-edit tolerance (`Coverage.CoverFuzzyWords`).
+- **Inflections and prefixes** — a query word that is a prefix of a document word matches (`CoverPrefixSuffix`): *run* finds *running*, *bok* finds *bokhandel*. The reverse direction (query *running*, document *run*) is covered by pattern matching but scores lower under Coverage; add a one-way synonym (*running → run*) when that direction matters for a term.
+- **Compound words (sammensatte ord)** — *spesialpedagogikk* matches *spesial pedagogikk* and vice versa without rules (`CoverJoinedWords`); mark title-like fields `HighResolution` for the sharpest compound matching. Decomposition and recomposition both work; no dictionary is involved.
+- **Domain vocabulary** — synonyms, editable by editors without code (next section).
+
+So on a "stemming" checklist: Indx does not ship a stemmer because the matcher already handles the common cases; the remaining case (long inflected query, short stored form) is a synonym entry.
+
+### Synonyms
+
+A per-dataset synonym list expands the query text before scoring — no re-indexing, effective on the next search. Entries are **multidirectional** (every term pulls in the others: *sofa ↔ couch*) or **one-way** (*hms → his majesty's ship*: searching the short form expands, searching the long form does not).
+
+- **Cloud UI**: the dataset's **Synonyms** tab — create, edit, filter, import/export JSON. Editors need no code access.
+- **HTTP**: `GET …/synonyms`, `PUT …/synonyms` (editor role).
+- **C#**: `engine.SynonymList` / `LoadSynonyms(path)` / `SaveSynonyms(path)`.
+
+Expansion lengthens the query, which lowers Coverage scores proportionally — measure before shipping a very large list. Details: [references/csharp.md](references/csharp.md#synonyms), [references/http-api.md](references/http-api.md#synonyms).
+
+### Dynamic document operations
+
+Insert, update, partially update and delete documents while the engine stays Ready. Changes are **searchable immediately** — there is no queue, no rebuild and no eventual consistency: a document inserted on publish is in the next search.
+
+| Operation | C# | HTTP |
+|---|---|---|
+| Insert | `InsertJsonRecord(s)` | `POST …/documents`, `POST …/documents/{key}` |
+| Replace a document | `UpdateJsonRecord(s)` | `PUT …/documents`, `PUT …/documents/{key}` |
+| Update one field | `UpdateField(key, field, value)` | `PATCH …/documents/{key}` |
+| Update a field on a filter | `UpdateFieldInFilter(filter, field, value)` | `POST …/documents/update-by-filter` |
+| Delete | `DeleteJsonRecord(s)`, `DeleteRecordsInFilter` | `DELETE …/documents/{key}`, `DELETE …/documents`, `POST …/documents/delete-by-filter` |
+
+For a whole-catalogue reload use `POST …/replace` (IndxCloudApi): the old index keeps serving until the new one is built, then swaps atomically — **zero downtime**, and field configuration, boost rules, synonyms and the key field carry over. Adding new fields needs this path; changing values does not.
+
+### Boost rules, campaigns and personalisation
+
+Boosts lift matching documents when a search runs with `enableBoost`. Two layers:
+
+- **Saved boost rules** (Cloud UI **Boost rules** tab; `GET/PUT/DELETE …/boosts`): a rule has a name, an `enabled` flag, conditions on filterable fields (`{field, value}` or `{field, min, max}`, joined with AND/OR), a strength (Low/Med/High) and an optional schedule (`activeFrom`, `activeUntil` dates) — campaign windows without code changes. Rules stack.
+- **Ad-hoc boosts per query** (`Query.Boosts` / `POST …/boosts/from-filter`): boost any filter, including an OR of many value filters. This is how **per-user personalisation** works — build a boost list from the user's history or segment and pass it with the query; hundreds of thousands of boosted documents cost little. See [references/csharp.md](references/csharp.md#boosts).
+
+Popularity or sales-based ranking: store a `popularity` number on each document and boost on ranges of it (rule or ad-hoc). Indx does not collect behavioural signals itself. There is no negative boost ("bury") and no pinned positions — relevance stays the primary order; a High boost is the strongest lift.
+
+### Vector and hybrid search
+
+Mark a field `Embeddable`, load vectors with the documents, and use:
+
+- `POST …/search/vector` — `{ fieldName, vector, maxResults, filter? }`: pure semantic nearest-neighbour (HNSW). Best for **"more like this"**, related items, cross-sell rails.
+- `POST …/search/hybrid` — `{ text, vector, alpha, maxNumberOfRecordsToReturn, filter? }`: `alpha · vectorScore + (1 − alpha) · textScore`. Best for meaning-plus-keyword queries (*grisebok* finding *Peppa Gris*).
+
+Indx **stores and searches** vectors; it does not generate them — bring embeddings from your own model. Filters apply to both. Details: [references/http-api.md](references/http-api.md#vector--hybrid-models).
 
 ---
 
@@ -210,9 +269,61 @@ For React 19+ projects, [@indxsearch/intrface](https://github.com/indxSearch/ind
 
 ---
 
+## Integration notes
+
+### Server-side use (Next.js, React Server Components, any backend)
+
+The HTTP API is plain REST over `fetch`; nothing about it needs a browser. For SSR or server components call `POST …/search` from the server with the API key in `Authorization: Bearer …` — the key stays server-side and never reaches the client. `@indxsearch/indx-types` is types-only (no runtime, safe anywhere); `@indxsearch/intrface` is React *client* components for the interactive parts. A typical Next.js split: server renders the first result page with `fetch` + `indx-types`, the client takes over typing with `intrface`.
+
+### Caching responses
+
+Search responses are deterministic for a given (query body, filter, index build). Cache them in your server or CDN layer as you like; invalidate when the dataset is reloaded or documents change. Nothing in the API forbids caching, and empty-search (browse) responses are the usual candidates.
+
+### Several content types in one index
+
+Put books, articles, events and authors in **one dataset** with a `contentType` field (mark it Filterable + Facetable). One search then covers all of them; the facet on `contentType` gives per-type counts in the same request, and a value filter narrows to one type. Fields that only some types have are fine — absent fields simply do not match.
+
+### Variants and editions
+
+Model one document per work with editions as an array (`editions[].isbn`, `editions[].format`, `editions[].price`). Array fields index one value per element and a filter matches if **any** element matches, so "paperback under 200" works at variant level while results stay one card per work. Note that `removeDuplicates` is per-document-key dedupe, not a group-by.
+
+## Capability summary
+
+Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the noted pattern · ❌ not offered.
+
+| Capability | | How |
+|---|---|---|
+| Field weighting, per-query field boosts | ✅ | `Weight`, `FieldBoosts` |
+| Typo tolerance | ✅ | built in, no config |
+| Search-as-you-type / autocomplete | ✅ | full ranked search per keystroke; no separate suggest endpoint needed |
+| Stemming | 🟠 | prefix/compound matching built in; reverse inflection via one-way synonyms |
+| Compound-word decomposition | ✅ | no rules needed |
+| Synonyms, editor-editable | ✅ | Cloud UI tab, HTTP, C# |
+| Facets with counts, per-type counts | ✅ | `Facetable`; zero-count values drop from the response — keep them greyed in the UI |
+| Value / range / boolean filters, AND/OR | ✅ | server-side filters; NOT is C#-only (`!filter`) |
+| Sorting by number/date/string | ✅ | `Sortable` |
+| Variant-level filtering | ✅ | array fields, any-element match |
+| Collapse variants to one card | 🟠 | model one document per work |
+| Real-time updates on publish | ✅ | dynamic operations, immediate |
+| Zero-downtime full reload | ✅ | `replace` |
+| Scheduled campaign boosts | ✅ | boost rules with `activeFrom`/`activeUntil` |
+| Per-user personalisation | ✅ | per-user boost lists |
+| Popularity ranking | 🟠 | boost on a popularity field you supply |
+| Bury / pin | ❌ | boosts lift only |
+| Semantic / vector / hybrid search | ✅ | bring your own embeddings |
+| Related items / more-like-this | 🟠 | vector search on the item's embedding |
+| Spell-check "did you mean" | ❌ | not needed: the corrected match is returned directly |
+| Search analytics (null results, popular queries) | ❌ | only a search counter; log `query.LogPrefix` into your own pipeline |
+| Behavioural tracking / consent events | ❌ | none by design — no telemetry in the engine |
+| A/B testing of relevance | 🟠 | `FieldBoosts` per query, or a second engine via `CreateInMemoryClone` |
+| Client timeout | ✅ | `TimeOutLimitMilliseconds` + `DidTimeOut`; abort the HTTP request for hard cancel |
+| SSR / server-side SDK | ✅ | REST + `indx-types`; see Integration notes |
+| EU/EEA hosting, DPA | ✅ | self-host anywhere; the Azure Managed App deploys into your own subscription in the region you choose (e.g. Norway East); DPA on request |
+| Self-hosting / source | 🟠 | IndxCloudApi host is open source on GitHub; the engine is a proprietary library with a free tier to 100k documents |
+
 ## Key Design Properties
 
-- **No language configuration** — works across languages without tokenizers, stemmers, or stop words
+- **No language configuration** — inflections, compounds and typos are handled by character-level matching, so there are no tokenizers, stemmers or stop-word lists to maintain per language; synonyms cover domain vocabulary
 - **Built-in typo tolerance** — pattern matching handles misspellings automatically
 - **In-memory indexing** — all search indexes live in memory for speed; persistence is metadata-only
 - **Linear coverage scaling** — coverage cost scales linearly with `coverageDepth`
@@ -222,7 +333,8 @@ For React 19+ projects, [@indxsearch/intrface](https://github.com/indxSearch/ind
 ## Resources
 
 - [Indx Home](https://indx.co) — registration and licensing
-- [API Documentation](https://docs.indx.co) — full C# API reference with How-To guides
+- [API Documentation](https://v5.docs.indx.co) — C# and HTTP API reference with How-To guides (v4 docs remain at docs.indx.co)
+- [Privacy & hosting](https://v5.docs.indx.co/gdpr) — data residency, GDPR, DPA
 - **C# / .NET**
   - [IndxSearchLib NuGet](https://www.nuget.org/packages/IndxSearchLib/) — core search engine (.NET 10, v5.0.0)
 - **HTTP API**
