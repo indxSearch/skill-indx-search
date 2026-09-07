@@ -82,7 +82,7 @@ A `409 invalidState` is returned when an operation is valid but the dataset's `s
 |--------|------------------|-------------|
 | GET | `/api/me/datasets` | List every dataset across your teams → `DataSetListDto[]` (each with `teamName` + your `role`) |
 | GET | `/api/teams/{teamName}/datasets` | List datasets owned by one team → `string[]` |
-| PUT | `/api/teams/{teamName}/datasets/{dataSetName}` | Create or open a dataset — `201` created, `200` already existed. Optional `?configuration=<config>` query for an explicit config |
+| PUT | `/api/teams/{teamName}/datasets/{dataSetName}` | Create or open a dataset — `201` created, `200` already existed |
 | GET | `status` | Get dataset status → `CloudSystemStatus` |
 | GET | `documents/count` | Get document count → `{"count": n}` |
 | DELETE | `/api/teams/{teamName}/datasets/{dataSetName}` | Delete dataset permanently (team Admin) → `204` |

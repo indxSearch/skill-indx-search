@@ -33,7 +33,7 @@ v5:  /api/teams/{teamName}/datasets/{dataSetName}/{operation}
 | Operation | v4 route | v5 route |
 |-----------|----------|----------|
 | Search | `POST /api/Search/{ds}` | `POST /api/teams/{team}/datasets/{ds}/search` |
-| Create/open | `PUT /api/CreateOrOpen/{ds}/{cfg}` | `PUT /api/teams/{team}/datasets/{ds}` (the dataset route itself; optional `?configuration=<cfg>`) — `201` created / `200` existed |
+| Create/open | `PUT /api/CreateOrOpen/{ds}/{cfg}` | `PUT /api/teams/{team}/datasets/{ds}` (the dataset route itself) — `201` created / `200` existed. There is no configuration to choose: a `?configuration=` value is accepted and ignored, so existing clients need no change |
 | Load | `PUT /api/LoadString/{ds}` | `POST /api/teams/{team}/datasets/{ds}/load/text` — `204` (`POST …/load` for a JSON stream) |
 | Index | `GET /api/IndexDataSet/{ds}` | `POST /api/teams/{team}/datasets/{ds}/index` — `202` (poll `GET …/status`) |
 | Status | `GET /api/GetStatus/{ds}` | `GET /api/teams/{team}/datasets/{ds}/status` |
