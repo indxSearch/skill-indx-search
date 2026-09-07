@@ -49,7 +49,7 @@ const BASE = `${HOST}/api/teams/${team}/datasets/${dataset}`;
 // then BASE + "/search", BASE + "/status", ...
 ```
 
-> **Pre-modernization v5 routes.** Early v5 servers exposed PascalCase operation names (`CreateOrOpen`, `GetStatus`, `IndexDataSet`, …) under the same team-scoped prefix, answering `200` for everything. Those routes still work as hidden aliases, but they are deprecated and no longer appear in OpenAPI — migrate to, and write new code against, the modern routes shown here.
+> **Pre-modernization v5 routes are gone.** Early v5 servers exposed PascalCase operation names (`CreateOrOpen`, `GetStatus`, `IndexDataSet`, …) under the same team-scoped prefix, answering `200` for everything. They were kept as hidden aliases for a while; they have since been removed, so they now answer `404` (or `405` where only the verb changed, such as `PUT …/replace`). Use the modern routes shown here.
 
 ### 2b. Delete routes changed shape
 
