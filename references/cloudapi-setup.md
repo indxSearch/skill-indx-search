@@ -14,14 +14,14 @@ Requires **.NET 10.0 SDK**. The server starts at `https://localhost:5001`.
 
 ## First Run
 
-Navigate to `https://localhost:5001/Account/Register` and create an account. The **first user to register becomes admin** — no pre-configuration needed.
+Navigate to `https://localhost:5001/account/register` and create an account. The **first user to register becomes admin** — no pre-configuration needed.
 
 After logging in, go to **Admin → Settings** to configure registration mode, email provider, and other instance settings through the UI.
 
 ## Get an API Key
 
 1. Log in at `/Account/Login`
-2. Navigate to `/Account/ApiKey`
+2. Navigate to `/account/api-key`
 3. Select duration (30, 90, 180, or 360 days) and click **Generate API Token**
 4. Copy the token
 

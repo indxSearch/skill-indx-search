@@ -6,7 +6,7 @@ For non-.NET tech stacks, deploy the IndxCloudApi server and interact via REST. 
 
 ## Authentication
 
-All endpoints require a **JWT Bearer token**. Create one on the IndxCloudApi website — the **API Key** page in your account portal (`/Account/ApiKey`) — then send it on every request:
+All endpoints require a **JWT Bearer token**. Create one on the IndxCloudApi website — the **API Key** page in your account portal (`/account/api-key`) — then send it on every request:
 
 ```bash
 curl -H "Authorization: Bearer <token>" https://your-host/api/...

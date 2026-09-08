@@ -69,7 +69,7 @@ A v4 client that expected a flat `string[]` of names must now read `name`/`teamN
 
 ### 2d. Auth is token-only
 
-v4 allowed an API login (POST email + password). v5 removes it: create a JWT in the account portal (**/Account/ApiKey**) and send `Authorization: Bearer <token>` on every request. There is no login API call to script. Update any code that logged in programmatically to instead read a pre-issued token from config/secret.
+v4 allowed an API login (POST email + password). v5 removes it: create a JWT in the account portal (**/account/api-key**) and send `Authorization: Bearer <token>` on every request. There is no login API call to script. Update any code that logged in programmatically to instead read a pre-issued token from config/secret.
 
 ### 2e. Pick the team
 
