@@ -96,6 +96,21 @@ A `409 invalidState` is returned when an operation is valid but the dataset's `s
 | POST | `load` | JSON body (stream) | Load JSON documents (large files) → `204` |
 | POST | `load/text` | JSON as plain text string | Load from string → `204` |
 | POST | `load/from-database` | — | Reload persisted data into memory → `204` |
+| POST | `replace` | JSON body (stream) | **Zero-downtime full reload**: builds a new engine on the side (analyze → carry over field config, key field → load → index), then swaps it in; the old data serves until the swap, and a failed build leaves it untouched. Editor role → `200` with a schema-change summary |
+
+`replace` response:
+
+```json
+{
+  "added":       ["newField"],        // in the new JSON, not previously configured — loads unconfigured
+  "removed":     ["oldField"],        // previously configured, absent now — its config is dropped
+  "typeChanged": ["price"],           // type changed — that field's roles were reset
+  "lostRoles":   ["price (filterable, sortable)"],  // WARNING: removed/retyped fields that had a role; searches and filters on them now silently miss
+  "keyFieldFallback": null            // WARNING when set: the declared key field was absent, so documents were keyed by the engine default ("id" if present, else auto)
+}
+```
+
+Surface `lostRoles` and `keyFieldFallback` to the user — they are the changes that alter search behaviour. Boost rules referencing a removed field go dormant (not deleted) and re-apply if the field returns.
 
 ### Field Configuration
 

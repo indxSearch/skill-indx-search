@@ -118,6 +118,10 @@ Never filter results client-side after a search. The search only returns a limit
 - Works on both numbers and strings (A–Z, 1–9). Default: descending. Set `SortAscending = true` to invert.
 - To reset: set `query.SortBy = null`.
 
+### Measuring performance
+
+Two different numbers, both true: **latency** (one search at a time — what a user waits; the Cloud UI's search preview reports the median and p95 of 100 sequential searches after warm-up) and **throughput** (searches per second with all cores busy — what a server sustains; the same tab reports it, and `SpectreJsonClient`'s "response time" is this figure divided per search). Compare like with like: a throughput-derived per-search time is typically 2–3× lower than latency on a multi-core machine.
+
 ### Facets Tip
 
 When implementing search-as-you-type with a large dataset, consider only fetching facets (`EnableFacets = true`) after a small delay, not on every keystroke.
@@ -169,6 +173,8 @@ Boosts lift matching documents when a search runs with `enableBoost`. Two layers
 
 - **Saved boost rules** (Cloud UI **Boost rules** tab; `GET/PUT/DELETE …/boosts`): a rule has a name, an `enabled` flag, conditions on filterable fields (`{field, value}` or `{field, min, max}`, joined with AND/OR), a strength (Low/Med/High) and an optional schedule (`activeFrom`, `activeUntil` dates) — campaign windows without code changes. Rules stack.
 - **Ad-hoc boosts per query** (`Query.Boosts` / `POST …/boosts/from-filter`): boost any filter, including an OR of many value filters. This is how **per-user personalisation** works — build a boost list from the user's history or segment and pass it with the query; hundreds of thousands of boosted documents cost little. See [references/csharp.md](references/csharp.md#boosts).
+
+Scheduled rules that pass their end date stop applying but are kept; the Cloud UI flags them (chip, summary, tab badge) and notifies the team's editors. Import/export the rule list as JSON from the tab, the same array as `GET/PUT …/boosts`.
 
 Popularity or sales-based ranking: store a `popularity` number on each document and boost on ranges of it (rule or ad-hoc). Indx does not collect behavioural signals itself. There is no negative boost ("bury") and no pinned positions — relevance stays the primary order; a High boost is the strongest lift.
 
