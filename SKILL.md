@@ -55,7 +55,7 @@ Tools:
 - **`describe_dataset(team, dataset)`** — configured fields with capabilities, plus **value hints** (distinct values for facetable fields, numeric ranges), an owner description, and a sample document. Call first so the agent filters with real values.
 - **`search(team, dataset, query, filters?, limit?, fields?, broaden?, facets?)`** — ranked hits with scores. Declarative AND filters (`{field, value}` or `{field, min, max}`). **Precise by default** (`includePatternMatches=false`) so an empty result is a trustworthy no-match; pass `broaden: true` for fuzzy recall.
 - **`get_document(team, dataset, key)`** — full JSON for a key.
-- **`get_synonyms(team, dataset)`** — the dataset's synonym list, or null when it has none. Explains why a search matched more than its literal words (queries expand through the list before scoring).
+- **`get_synonyms(team, dataset)`** — the dataset's synonym list (an empty `entries` array when it has none). Explains why a search matched more than its literal words (queries expand through the list before scoring).
 
 Connect with the endpoint URL + API key. Clients without a custom-header field use the `mcp-remote` bridge:
 
