@@ -167,6 +167,8 @@ Insert, update, partially update and delete documents while the engine stays Rea
 
 For a whole-catalogue reload use `POST …/replace` (IndxCloudApi): the old index keeps serving until the new one is built, then swaps atomically — **zero downtime**, and field configuration, boost rules, synonyms and the key field carry over. Adding new fields needs this path; changing values does not.
 
+**Pitfall — new fields are silently ignored by insert/update.** A document with a field missing from the field configuration is accepted and stored whole (the field shows in hit payloads) but is never indexed and the configuration does not grow; there is no warning, and it stays that way after restarts. Symptom: "the new field shows in results but searching/filtering on it finds nothing". Fix: full `replace` with a complete export, then assign roles to the field reported under `added`. Missing non-key fields are treated as null; a missing key field rejects the batch. `PATCH …/documents/{key}` on an unknown field is the one case that returns 400.
+
 ### Boost rules, campaigns and personalisation
 
 Boosts lift matching documents when a search runs with `enableBoost`. Two layers:

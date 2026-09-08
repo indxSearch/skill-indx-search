@@ -140,6 +140,8 @@ The individual role setters `PUT fields/searchable` / `fields/filterable` / `fie
 
 Insert, update, and delete without rebuilding the index. The dataset stays ready throughout.
 
+**Unknown fields are accepted but never indexed** — stored in the raw JSON, invisible to search/filter/facet/sort, field configuration unchanged, no warning (only `PATCH` on an unknown field returns 400). Add fields via `replace` (see Data Loading). Missing non-key fields → null; missing key field → whole batch rejected.
+
 | Method | Operation | Body | Description |
 |--------|-----------|------|-------------|
 | POST | `documents` | `string[]` (JSON objects) | Insert multiple documents → `201` |
