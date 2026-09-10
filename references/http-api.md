@@ -49,6 +49,12 @@ Every error is an [RFC 9457 ProblemDetails](https://www.rfc-editor.org/rfc/rfc94
 | `400` | `loadFailed` | The JSON payload could not be loaded/analyzed (parse error, key-field violation) | Fix the data; the dataset's previous documents are untouched on `replace` |
 | `400` | `operationFailed` | A server-side step failed cleanly (index build, shadow build, wake-up) | Read `detail`; retrying may work after fixing the cause |
 | `400` | `unknownFilter` | A referenced filter `hashString` could not be resolved | Re-create the filter and retry with the new token — never retry without the filter |
+
+A `hashString` is the filter expression in plain text, not an opaque handle: `VF;field;value`
+(add `C` for case-sensitive), `RF;field;min;max;culture`, and combinations bracketed by U+0000 /
+U+0001 around `&`, `|` or `!`. You may compose one client-side instead of calling
+`filters/value|range|combine` — for NOT that is the only way, since no endpoint mints one.
+Structural characters inside a name or value are percent-escaped. See the Filters page.
 | `401` | — | Missing/expired/invalid token (body-less) | Refresh the bearer token |
 | `401` | `invalidCredentials` / `userNotFound` | Login failed | Fix the credentials |
 | `403` | `insufficientRole` | You are a member, but your team role is too low | Get a higher role (Editor/Admin) |
