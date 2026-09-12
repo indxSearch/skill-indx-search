@@ -137,7 +137,7 @@ The individual role setters `PUT fields/searchable` / `fields/filterable` / `fie
 | Method | Operation | Body | Description |
 |--------|-----------|------|-------------|
 | POST | `index` | — | Start indexing → `202 Accepted` with a `SystemStatus` body; poll `GET status` until Ready |
-| POST | `search` | `CloudQuery` | Full-text search → `Result` |
+| POST | `search` | `QueryProxy` | Full-text search → `Result` |
 | POST | `search/vector` | `VectorQueryProxy` | Embedding nearest-neighbour search → `EmbeddingResultEntry[]` |
 | POST | `search/hybrid` | `HybridQueryProxy` | Blended text + vector search → `EmbeddingResultEntry[]` |
 | POST | `documents/lookup` | `long[]` (document keys) | Retrieve full JSON records → `string[]` |
@@ -220,7 +220,7 @@ All fields are optional (null = unchanged). Available properties:
 
 `fieldType` and `isArray` are read-only — the server fills them in on `GET fields/configuration` and ignores them on `PUT fields/configuration`.
 
-### CloudQuery (Search Request)
+### QueryProxy (Search Request)
 
 Minimal:
 ```json

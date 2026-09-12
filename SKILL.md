@@ -102,7 +102,7 @@ Note: Weights affect pattern recognition directly. A short text pattern in a lon
 
 ### Filters Must Be Server-Side
 
-Never filter results client-side after a search. The search only returns a limited number of results (`maxNumberOfRecordsToReturn`), so client-side filtering on that subset will miss documents. Always create filters server-side (`CreateValueFilter` / `CreateRangeFilter` / `CombineFilters` in C#; `POST filters/value` / `filters/range` / `filters/combine` over HTTP) and pass the filter in the query (`query.Filter` in C#, `CloudQuery.filter` in HTTP) so the server applies the filter during search.
+Never filter results client-side after a search. The search only returns a limited number of results (`maxNumberOfRecordsToReturn`), so client-side filtering on that subset will miss documents. Always create filters server-side (`CreateValueFilter` / `CreateRangeFilter` / `CombineFilters` in C#; `POST filters/value` / `filters/range` / `filters/combine` over HTTP) and pass the filter in the query (`query.Filter` in C#, `QueryProxy.filter` in HTTP) so the server applies the filter during search.
 
 ### Search Behavior Guidance
 
