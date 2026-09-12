@@ -1,12 +1,12 @@
 # HTTP API Integration
 
-For non-.NET tech stacks, deploy the IndxCloudApi server and interact via REST. For setup, deployment, and configuration see [cloudapi-setup.md](cloudapi-setup.md).
+For non-.NET tech stacks, deploy the Indx server and interact via REST. For setup, deployment, and configuration see [cloudapi-setup.md](cloudapi-setup.md).
 
 **OpenAPI spec**: `https://localhost:5001/swagger/v1/swagger.json`
 
 ## Authentication
 
-All endpoints require a **JWT Bearer token**. Create one on the IndxCloudApi website — the **API Key** page in your account portal (`/account/api-key`) — then send it on every request:
+All endpoints require a **JWT Bearer token**. Create one on the Indx Dashboard — the **API Key** page in your account portal (`/account/api-key`) — then send it on every request:
 
 ```bash
 curl -H "Authorization: Bearer <token>" https://your-host/api/...
@@ -370,7 +370,7 @@ Use `POST .../documents/lookup` with the array of `documentKey` values to retrie
 All steps below are under `/api/teams/{team}/datasets/{dataset}/`.
 
 ```
-1. Create a token on the IndxCloudApi website (Account → API Key)
+1. Create a token on the Indx Dashboard (Account → API Key)
 2. PUT   (the dataset route itself) → create dataset (201 created / 200 existed)
 3. POST  analyze                   → discover fields
 4. PUT   fields/configuration      → configure all fields in one call (204)

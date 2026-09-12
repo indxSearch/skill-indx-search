@@ -1,12 +1,12 @@
-# IndxCloudApi — Setup & Deployment
+# Indx — Setup & Deployment
 
-This guide covers running, configuring, and deploying the IndxCloudApi server. For API endpoints and search usage, see [http-api.md](http-api.md).
+This guide covers running, configuring, and deploying the Indx server. For API endpoints and search usage, see [http-api.md](http-api.md).
 
 ## Quick Start
 
 ```bash
-git clone https://github.com/indxSearch/IndxCloudApi
-cd IndxCloudApi
+git clone https://github.com/indxSearch/Indx
+cd Indx
 dotnet run
 ```
 
@@ -32,7 +32,7 @@ curl -H "Authorization: Bearer <your-token>" https://localhost:5001/api/...
 
 ## Teams
 
-IndxCloudApi organises access around **teams**. A team owns datasets, and every member has the same role on all of the team's datasets:
+Indx organises access around **teams**. A team owns datasets, and every member has the same role on all of the team's datasets:
 
 | Role | Search | Modify data & fields | Delete / transfer |
 |------|:------:|:--------------------:|:-----------------:|
@@ -46,7 +46,7 @@ Because datasets belong to teams, **every dataset API endpoint is scoped to a te
 
 ## Configuration
 
-IndxCloudApi reads from `appsettings.json` and environment variables. Sensitive values should always be set via environment variables, not committed to the repo.
+Indx reads from `appsettings.json` and environment variables. Sensitive values should always be set via environment variables, not committed to the repo.
 
 Most settings can also be changed through the **Admin → Settings** UI after first login, without restarting the app.
 
@@ -88,7 +88,7 @@ Email__AzureCommunicationServices__ConnectionString = endpoint=https://...;acces
 Email__FromAddress = noreply@your-verified-domain.com
 ```
 
-See [docs/EMAIL_SETUP.md](https://github.com/indxSearch/IndxCloudApi/blob/main/docs/EMAIL_SETUP.md) for ACS setup.
+See [docs/EMAIL_SETUP.md](https://github.com/indxSearch/Indx/blob/main/docs/EMAIL_SETUP.md) for ACS setup.
 
 ### OAuth (Optional)
 
@@ -101,7 +101,7 @@ Authentication__Google__ClientSecret = your-client-secret
 
 When credentials are present, sign-in buttons appear on the login page automatically. Leave empty to use local accounts only.
 
-See [docs/OAUTH_SETUP.md](https://github.com/indxSearch/IndxCloudApi/blob/main/docs/OAUTH_SETUP.md) for app registration steps.
+See [docs/OAUTH_SETUP.md](https://github.com/indxSearch/Indx/blob/main/docs/OAUTH_SETUP.md) for app registration steps.
 
 ### Email Confirmation
 

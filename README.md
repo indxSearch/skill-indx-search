@@ -1,6 +1,6 @@
 # skill-indx-search
 
-> Targets IndxSearchLib v5.0.0 and IndxCloudApi v2.0 (beta).
+> Targets IndxSearchLib v5.0.0 and Indx v2.0 (beta).
 > AI agents can sometimes produce incorrect code. Always verify generated output against the [official documentation](https://docs.indx.co).
 
 Everything your AI coding agent needs to understand, install, and integrate [Indx Search](https://indx.co) in your project.
@@ -24,7 +24,7 @@ Or browse on [skills.sh](https://skills.sh/indxsearch/skill-indx-search/indx-sea
 
 - [indx.co](https://indx.co) — Registration and licensing
 - [IndxSearchLib on NuGet](https://www.nuget.org/packages/IndxSearchLib/) — C# search engine package
-- [IndxCloudApi](https://github.com/indxSearch/IndxCloudApi) — Self-host HTTP API server
+- [Indx](https://github.com/indxSearch/Indx) — Self-host HTTP API server
 - [API Documentation](https://docs.indx.co) — Full C# API reference
 - [@indxsearch/indx-types](https://www.npmjs.com/package/@indxsearch/indx-types) — TypeScript type definitions
 - [@indxsearch/intrface](https://www.npmjs.com/package/@indxsearch/intrface) — React search UI components ([GitHub](https://github.com/indxSearch/indx-intrface))

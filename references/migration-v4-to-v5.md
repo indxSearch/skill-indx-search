@@ -1,6 +1,6 @@
 # Migrating Indx v4 → v5
 
-Use this when a user is on **Indx v4** (IndxSearchLib 4.x / IndxCloudApi v1) and wants to move to **v5** (IndxSearchLib 5.x / IndxCloudApi v2), or when their existing v4 code is being mistaken for v5.
+Use this when a user is on **Indx v4** (IndxSearchLib 4.x / Indx v1) and wants to move to **v5** (IndxSearchLib 5.x / Indx v2), or when their existing v4 code is being mistaken for v5.
 
 v5 is the recommended version. The single biggest change is on the **HTTP API**: datasets now belong to **teams**, and every dataset endpoint is **team-scoped**. Flat v4 routes no longer exist on a v5 server.
 
@@ -19,7 +19,7 @@ Don't assume. Check:
 
 ---
 
-## 2. HTTP API (IndxCloudApi v1 → v2) — the breaking changes
+## 2. HTTP API (Indx v1 → v2) — the breaking changes
 
 ### 2a. Datasets belong to teams; every endpoint is team-scoped
 
@@ -91,7 +91,7 @@ The embedded C# API is less affected than the HTTP API, but two things matter:
 ## 4. Upgrade checklist
 
 **HTTP API consumer:**
-1. Confirm the server is running IndxCloudApi v2 (team-scoped routes respond; `/api/me/datasets` works).
+1. Confirm the server is running Indx v2 (team-scoped routes respond; `/api/me/datasets` works).
 2. Replace flat routes with `…/teams/{team}/datasets/{ds}/{op}` (2a) — including the delete-route shapes (2b).
 3. Swap any login call for a portal-issued bearer token (2d).
 4. Replace `GetUserDatasets` usage with `me/datasets` / `teams/{team}/datasets` and read the object shape (2c).

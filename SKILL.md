@@ -1,6 +1,6 @@
 ---
 name: indx-search
-description: Indx Search integration skill for AI coding agents. Use when building or evaluating search with Indx — a high-performance, typo-tolerant search engine that matches at the character-pattern level instead of relying on tokenizers or per-language stemmers. Covers C# NuGet (IndxSearchLib) and HTTP API (IndxCloudApi) integration, a built-in MCP server, field configuration and weighting, search-as-you-type, filters and facets, boost rules (incl. scheduled campaigns and per-user personalisation), synonyms, vector and hybrid search, real-time document updates, zero-downtime reindexing, server-side (SSR) usage, and search UX patterns.
+description: Indx Search integration skill for AI coding agents. Use when building or evaluating search with Indx — a high-performance, typo-tolerant search engine that matches at the character-pattern level instead of relying on tokenizers or per-language stemmers. Covers C# NuGet (IndxSearchLib) and HTTP API (Indx) integration, a built-in MCP server, field configuration and weighting, search-as-you-type, filters and facets, boost rules (incl. scheduled campaigns and per-user personalisation), synonyms, vector and hybrid search, real-time document updates, zero-downtime reindexing, server-side (SSR) usage, and search UX patterns.
 ---
 
 # Indx Search — Agent Skill
@@ -11,7 +11,7 @@ If you are **evaluating** Indx against a feature list, read [Capability summary]
 
 ## Versions & Compatibility — read first
 
-This skill targets **Indx v5**: IndxSearchLib **5.x** (.NET 10) and IndxCloudApi **v2** (team-scoped HTTP API, token-only auth). Everything below assumes v5.
+This skill targets **Indx v5**: IndxSearchLib **5.x** (.NET 10) and Indx **v2** (team-scoped HTTP API, token-only auth). Everything below assumes v5.
 
 **Before giving any integration guidance, establish which version the user is on.** v4 and v5 differ in ways that silently break copy-pasted code — handing a v4 user v5 routes is a common, confusing failure. Detection signals:
 
@@ -41,13 +41,13 @@ If the user is on **v5**, proceed normally. If on **v4**, do **not** hand them v
 
 **C# / .NET project** → Use the [IndxSearchLib NuGet package](https://www.nuget.org/packages/IndxSearchLib/) directly (.NET 10, v5.0.0). Embed search into your application with no external dependencies. See [references/csharp.md](references/csharp.md) for full API reference.
 
-**Any other tech stack** (Node.js, Python, Java, etc.) → Deploy the [IndxCloudApi](https://github.com/indxSearch/IndxCloudApi) HTTP API server and interact via REST (.NET 10). Recommended deployment target: Azure App Service. See [references/cloudapi-setup.md](references/cloudapi-setup.md) for setup and deployment, and [references/http-api.md](references/http-api.md) for endpoints, schemas, and data loading.
+**Any other tech stack** (Node.js, Python, Java, etc.) → Deploy the [Indx](https://github.com/indxSearch/Indx) HTTP API server and interact via REST (.NET 10). Recommended deployment target: Azure App Service. See [references/cloudapi-setup.md](references/cloudapi-setup.md) for setup and deployment, and [references/http-api.md](references/http-api.md) for endpoints, schemas, and data loading.
 
-**Connecting an AI agent to a running instance** → IndxCloudApi has a built-in **MCP server** — see below.
+**Connecting an AI agent to a running instance** → Indx has a built-in **MCP server** — see below.
 
 ## AI Agents over MCP
 
-IndxCloudApi exposes a read-only **MCP server** at `/mcp` (Streamable HTTP), so any MCP client (Claude Desktop/Code, agent frameworks) can search a running instance with no glue code. It runs in-process, so **saved boost rules apply** to agent searches and hibernated datasets auto-wake. Authenticate with an **API key as a `Bearer` token** (generate under Account → API keys; admins toggle the server under Admin → Settings).
+Indx exposes a read-only **MCP server** at `/mcp` (Streamable HTTP), so any MCP client (Claude Desktop/Code, agent frameworks) can search a running instance with no glue code. It runs in-process, so **saved boost rules apply** to agent searches and hibernated datasets auto-wake. Authenticate with an **API key as a `Bearer` token** (generate under Account → API keys; admins toggle the server under Admin → Settings).
 
 Tools:
 
@@ -165,7 +165,7 @@ Insert, update, partially update and delete documents while the engine stays Rea
 | Update a field on a filter | `UpdateFieldInFilter(filter, field, value)` | `POST …/documents/update-by-filter` |
 | Delete | `DeleteJsonRecord(s)`, `DeleteRecordsInFilter` | `DELETE …/documents/{key}`, `DELETE …/documents`, `POST …/documents/delete-by-filter` |
 
-For a whole-catalogue reload use `POST …/replace` (IndxCloudApi): the old index keeps serving until the new one is built, then swaps atomically — **zero downtime**, and field configuration, boost rules, synonyms and the key field carry over. Adding new fields needs this path; changing values does not.
+For a whole-catalogue reload use `POST …/replace` (Indx): the old index keeps serving until the new one is built, then swaps atomically — **zero downtime**, and field configuration, boost rules, synonyms and the key field carry over. Adding new fields needs this path; changing values does not.
 
 **Pitfall — new fields are silently ignored by insert/update.** A document with a field missing from the field configuration is accepted and stored whole (the field shows in hit payloads) but is never indexed and the configuration does not grow; there is no warning, and it stays that way after restarts. Symptom: "the new field shows in results but searching/filtering on it finds nothing". Fix: full `replace` with a complete export, then assign roles to the field reported under `added`. Missing non-key fields are treated as null; a missing key field rejects the batch. `PATCH …/documents/{key}` on an unknown field is the one case that returns 400.
 
@@ -327,7 +327,7 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 | Client timeout | ✅ | `TimeOutLimitMilliseconds` + `DidTimeOut`; abort the HTTP request for hard cancel |
 | SSR / server-side SDK | ✅ | REST + `indx-types`; see Integration notes |
 | EU/EEA hosting, DPA | ✅ | self-host anywhere; the Azure Managed App deploys into your own subscription in the region you choose (e.g. Norway East); DPA on request |
-| Self-hosting / source | 🟠 | IndxCloudApi host is open source on GitHub; the engine is a proprietary library with a free tier to 100k documents |
+| Self-hosting / source | 🟠 | Indx host is open source on GitHub; the engine is a proprietary library with a free tier to 100k documents |
 
 ## Key Design Properties
 
@@ -346,7 +346,7 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 - **C# / .NET**
   - [IndxSearchLib NuGet](https://www.nuget.org/packages/IndxSearchLib/) — core search engine (.NET 10, v5.0.0)
 - **HTTP API**
-  - [IndxCloudApi](https://github.com/indxSearch/IndxCloudApi) — self-host server template (ASP.NET Core)
+  - [Indx](https://github.com/indxSearch/Indx) — self-host server template (ASP.NET Core)
   - [OpenAPI spec](https://v5.cloud.indx.co/swagger/v2.0-beta/swagger.json) — machine-readable API definition
 - **Node.js / TypeScript**
   - [@indxsearch/indx-types](https://www.npmjs.com/package/@indxsearch/indx-types) — TypeScript type definitions
