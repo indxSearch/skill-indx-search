@@ -62,7 +62,7 @@ value by filtering on the complementary values instead.
 | `404` | `documentNotFound` | The addressed document key(s) don't exist | Fix the keys; batch deletes name every missing key and apply nothing |
 | `409` | `invalidState` | **Wrong lifecycle state** — the dataset can't serve this operation right now | See below |
 | `409` | `shadowBusy` | A background rebuild (replace / re-index / field-config) is already running | Retry after it completes |
-| `429` | `rateLimited` | Too many attempts from this address on an anonymous auth endpoint, or — where the operator enabled it — this API key exceeded its requests-per-second budget | Wait `Retry-After` seconds (also `retryAfterSeconds` in the body); do not retry sooner. For the per-key limit, spread calls out or batch them (`documents` endpoints take arrays) |
+| `429` | `rateLimited` | Too many attempts from this address on an anonymous auth endpoint; this API key exceeded its requests-per-second budget (where the operator enabled it); the server already runs its maximum of concurrent heavy operations (load, replace, index, wake-up, batch document changes); or the search queue is full | Wait `Retry-After` seconds (also `retryAfterSeconds` in the body); do not retry sooner. For the per-key limit, spread calls out or batch them (`documents` endpoints take arrays). For heavy operations, run them one after another rather than in parallel |
 | `500` | `internalError` | Unexpected server error; `traceId` included | Report the `traceId` |
 
 A `409 invalidState` is returned when an operation is valid but the dataset's `systemState` can't serve it (e.g. `POST search` before the dataset is `Ready`, `POST wakeup` when not `Hibernated`):
