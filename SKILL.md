@@ -347,7 +347,7 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
   - [IndxSearchLib NuGet](https://www.nuget.org/packages/IndxSearchLib/) — core search engine (.NET 10, v5.0.0)
 - **HTTP API**
   - [Indx](https://github.com/indxSearch/Indx) — self-host server template (ASP.NET Core)
-  - [OpenAPI spec](https://v5.cloud.indx.co/swagger/v2.0-beta/swagger.json) — machine-readable API definition
+  - OpenAPI spec — every Indx server publishes its own at `/swagger/v2.0-beta/swagger.json` (e.g. `https://localhost:5001/swagger/v2.0-beta/swagger.json`)
 - **Node.js / TypeScript**
   - [@indxsearch/indx-types](https://www.npmjs.com/package/@indxsearch/indx-types) — TypeScript type definitions
 - **Frontend**
