@@ -21,11 +21,16 @@ After logging in, go to **Admin → Settings** to configure registration mode, e
 ## Get an API Key
 
 1. Log in at `/Account/Login`
-2. Navigate to `/account/api-key`
-3. Select duration (30, 90, 180, or 360 days) and click **Generate API Token**
-4. Copy the token
+2. Navigate to `/account/api-key` and click **New API key**
+3. Choose the team, the access level and, optionally, the datasets the key may reach:
+   - **Search only** — search, document lookup, filters, field lists, status. The only level to use in a browser (every visitor can read the key).
+   - **Read only** — every read, including export and configuration. For exports, reporting, agents; keep server-side.
+   - **Full access** — everything the owner's team role allows. For your own servers and pipelines.
+4. Choose the expiry (30, 90, 180 or 365 days), click **Create key**, and copy it — it is shown once
 
-Use the token in all API requests:
+A key never exceeds its owner's role and cannot be changed later. A key is only valid on the server that issued it (each server signs with its own secret), so create it on the server you will call. See [http-api.md](http-api.md#authentication) for what each level can call.
+
+Send the key in every request:
 ```bash
 curl -H "Authorization: Bearer <your-token>" https://localhost:5001/api/...
 ```
