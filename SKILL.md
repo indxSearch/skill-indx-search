@@ -47,7 +47,7 @@ If the user is on **v5**, proceed normally. If on **v4**, do **not** hand them v
 
 ## AI Agents over MCP
 
-Indx exposes a read-only **MCP server** at `/mcp` (Streamable HTTP), so any MCP client (Claude Desktop/Code, agent frameworks) can search a running instance with no glue code. It runs in-process, so **saved boost rules apply** to agent searches and hibernated datasets auto-wake. Authenticate with an **API key as a `Bearer` token** (generate under Account → API keys; admins toggle the server under Admin → Settings).
+Indx exposes a read-only **MCP server** at `/mcp` (Streamable HTTP), so any MCP client (Claude Desktop/Code, agent frameworks) can search a running instance with no glue code. It runs in-process, so **saved boost rules apply** to agent searches and hibernated datasets auto-wake. Authenticate with an **API key as a `Bearer` token** (generate under Account → API keys; admins toggle the server under Admin → Settings). The agent sees only what the key reaches: a Search only key can list, search and fetch documents; `describe_dataset` and `get_synonyms` need Read.
 
 Tools:
 
@@ -278,6 +278,8 @@ The C# NuGet API returns document keys and scores (not full documents) in `resul
 ### React component library
 
 For React 19+ projects, [@indxsearch/intrface](https://github.com/indxSearch/indx-intrface) implements all of the above patterns as drop-in components: `SearchProvider`, `SearchInput`, `SearchResults`, `ValueFilterPanel`, `RangeFilterPanel`, `ActiveFiltersPanel`, `SortByPanel`, and more. See the [indx-intrface README](https://github.com/indxSearch/indx-intrface) for full component API.
+
+**The key a front-end ships is public.** `SearchProvider` sends its `preAuthenticatedToken` from the browser, so every visitor can read it. Always create it with the access level **Search only**, limited to the team and datasets the page searches — never a Read or Full access key. intrface 3.3.0+ needs nothing more; earlier versions also call `PUT …/datasets/{name}`, which a Search key may make on an existing dataset.
 
 ---
 

@@ -6,7 +6,17 @@ For non-.NET tech stacks, deploy the Indx server and interact via REST. For setu
 
 ## Authentication
 
-All endpoints require a **JWT Bearer token**. Create one on the Indx Dashboard — the **API Key** page in your account portal (`/account/api-key`) — then send it on every request:
+All endpoints require a **Bearer token** — an API key from the console (Account → API keys, `/account/api-key`). Every key is limited to **one team**, optionally to **some of its datasets**, and to an **access level**:
+
+| Level | Can call | Use it for |
+|---|---|---|
+| **Search only** | `search`, `search/vector`, `search/hybrid`, `documents/lookup`, `filters/value`, `filters/range`, `filters/combine`, `boosts/from-filter`, `fields/facetable`, `fields/filterable`, `fields/sortable`, `fields/searchable`, `status`, and `PUT` on an existing dataset | Websites and apps — the key is visible in the browser, and this is all it can do |
+| **Read only** | Every read: adds `export`, `fields/configuration`, `synonyms`, `boosts`, counts, dataset lists | Exports, reporting, agents, back-ups — keep it on a server |
+| **Full access** | Everything your team role allows, including loading, changing and deleting data | Your own servers and pipelines |
+
+A key never exceeds its owner's role in the team: a Viewer can create Search and Read keys, not Full ones. Keys cannot be changed after they are created — create a new one and revoke the old. A key outside its limits gets the same answer as a missing team or dataset (`404 teamNotFound` / `datasetNotFound`); a call above its level gets `403 insufficientKeyScope`. Keys created before access levels existed are unscoped and reach every team you belong to — replace them.
+
+**For a browser front-end, always a Search only key** limited to the datasets it searches: the key is readable by every visitor. Send it on every request:
 
 ```bash
 curl -H "Authorization: Bearer <token>" https://your-host/api/...
@@ -57,6 +67,7 @@ value by filtering on the complementary values instead.
 | `401` | — | Missing/expired/invalid token (body-less) | Refresh the bearer token |
 | `401` | `invalidCredentials` / `userNotFound` | Login failed | Fix the credentials |
 | `403` | `insufficientRole` | You are a member, but your team role is too low | Get a higher role (Editor/Admin) |
+| `403` | `insufficientKeyScope` | The API key's access level is below the operation (Search key calling a write) | Use a key with a higher level — on a server, never in a browser |
 | `404` | `teamNotFound` | The team doesn't exist **or you are not a member** (identical on purpose — team names can't be enumerated) | Verify via `GET /api/me/datasets` |
 | `404` | `datasetNotFound` | The dataset doesn't exist in this team | Create it, or fix the name |
 | `404` | `documentNotFound` | The addressed document key(s) don't exist | Fix the keys; batch deletes name every missing key and apply nothing |
