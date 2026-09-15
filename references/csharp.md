@@ -186,7 +186,7 @@ var query = new Query("search text", maxResults)
 };
 ```
 
-`FieldBoosts` — per-query field boost multipliers for the BM25F scoring path. Only has effect when `ScoringMode` is `BM25F`. Fields not listed default to 1.0.
+`FieldBoosts` — per-query multipliers on each field's `Weight` for the BM25F scoring path (`Weight = 3.0f` × boost `2.0f` = 6×; fields not listed default to 1.0, i.e. their `Weight`). Only has effect when `ScoringMode` is `BM25F` — every searchable field has the same `BM25k1`. **Every key must be a searchable field**: an unknown or non-searchable key makes `Search` return an empty `Result` with no `Reason`, indistinguishable from no matches; the message is on `engine.Status.ErrorMessage`.
 
 ## Handling Results
 
