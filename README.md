@@ -22,9 +22,9 @@ Or browse on [skills.sh](https://skills.sh/indxsearch/skill-indx-search/indx-sea
 
 ## Resources
 
-- [indx.co](https://indx.co) — Registration and licensing
-- [IndxSearchLib on NuGet](https://www.nuget.org/packages/IndxSearchLib/) — C# search engine package
-- [Indx](https://github.com/indxSearch/Indx) — Self-host HTTP API server
-- [API Documentation](https://docs.indx.co) — Full C# API reference
-- [@indxsearch/indx-types](https://www.npmjs.com/package/@indxsearch/indx-types) — TypeScript type definitions
-- [@indxsearch/intrface](https://www.npmjs.com/package/@indxsearch/intrface) — React search UI components ([GitHub](https://github.com/indxSearch/indx-intrface))
+- [indx.co](https://indx.co): Registration and licensing
+- [IndxSearchLib on NuGet](https://www.nuget.org/packages/IndxSearchLib/): C# search engine package
+- [Indx](https://github.com/indxSearch/Indx): Self-host HTTP API server
+- [API Documentation](https://docs.indx.co): Full C# API reference
+- [@indxsearch/indx-types](https://www.npmjs.com/package/@indxsearch/indx-types): TypeScript type definitions
+- [@indxsearch/intrface](https://www.npmjs.com/package/@indxsearch/intrface): React search UI components ([GitHub](https://github.com/indxSearch/indx-intrface))
