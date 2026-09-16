@@ -259,6 +259,13 @@ Full (with defaults shown):
 }
 ```
 
+- `coverageDepth` (default **500**) — how many pattern-match candidates coverage confirms. Hits past
+  the depth are never evaluated, so a broad query reports a total landing exactly on the depth: **a
+  count equal to `coverageDepth` is the cap, not the data.** Raise it to the document count on small
+  and mid-sized datasets (cost is linear in depth), and use one depth for the list and its facet counts.
+- `enableFacets` — also required for an **empty** `text`. Empty text with `enableFacets: false` is
+  refused: `200`, no records, `reason` set. The dataset also needs one facetable field.
+
 `sortBy` — field name as a **string** (e.g. `"price"`).
 
 `fieldBoosts` — per-query multipliers on each field's configured `weight` (BM25F mode only):
@@ -311,6 +318,9 @@ Full with CoverageSetup (defaults shown):
 
 - `records` — `[{ documentKey, score }]`. Score is 0–65535 (ushort); coverage hits always score higher than pattern-only matches.
 - `facets` — only populated when `enableFacets: true`.
+- `reason` — set when the engine **refused** the query instead of finding nothing: empty `text`
+  without `enableFacets`, text over the 300-character limit, a dataset that is not ready. Records are
+  empty either way, so check it alongside `didTimeOut` and never render a refusal as "no results".
 - `truncationIndex` — where coverage truncation occurred (–1 if none).
 - `didTimeOut` — the search could not be *served*, as opposed to serving and finding nothing: either it
   hit the timeout limit, or the engine was not `Ready`. Over HTTP the not-Ready case normally surfaces

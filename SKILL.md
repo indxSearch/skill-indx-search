@@ -112,7 +112,7 @@ Never filter results client-side after a search. The search only returns a limit
 
 - **Keep coverage enabled** (the default). This is the recommended setting for nearly all use cases — both human-facing and programmatic. Only disable coverage in edge cases where you search a single field and only care about top-K fuzzy matches (e.g. name lookup). With coverage disabled, truncation is unreliable and results degrade when searching across multiple fields (title + description + category, etc.).
 - **Agent/tool usage**: Enable coverage and set `IncludePatternMatches = false` (`coverageSetup.includePatternMatches` in HTTP). This returns only exact and near-exact matches (within ~1 typo), filtering out loose pattern hits.
-- **Empty search**: Supported with empty/null query text. Requires facets enabled and at least one facetable field. Returns all documents, ignores `CoverageDepth`.
+- **Empty search**: Supported with empty/null query text. Requires facets enabled and at least one facetable field. Returns all documents, ignores `CoverageDepth`. **Without `enableFacets` the empty query is refused, not empty**: `200`, no records, and `reason` set to `Search called with empty string and EnableFacets=false`. A browse page that omits the flag therefore renders an empty catalogue with no error — read `reason` before rendering.
 - **No debounce needed on search**: Indx is fast enough that debouncing search requests is unnecessary. Fire on every keystroke.
 
 ### Sorting Behavior
@@ -134,6 +134,8 @@ When implementing search-as-you-type with a large dataset, consider only fetchin
 
 - `EnableCoverage` (default: `true`) — Toggle the coverage refinement step.
 - `CoverageDepth` (default: `500`) — Number of top-K pattern-match candidates to evaluate. Higher = better recall, more latency. Auto-increases if `MaxNumberOfRecordsToReturn > CoverageDepth`. Set to `engine.Status.DocumentCount` for full-dataset coverage.
+  - **The default surfaces as a wrong count, not a short page.** Hits past the depth are never confirmed, so a broad query reports a total that lands exactly on the depth. **A count equal to `coverageDepth` is the cap talking, not the data.** Cost is linear in depth, so full-dataset depth is effectively free on small and mid-sized datasets; benchmark before raising it into the millions.
+  - **Use one depth per surface.** Result list and facet counts at different depths describe different universes, and the numbers beside each other disagree.
 - `CoverageSetup` — Fine-grained control (see advanced sections below).
 
 ### Language handling
@@ -292,6 +294,8 @@ The HTTP API is plain REST over `fetch`; nothing about it needs a browser. For S
 ### Caching responses
 
 Search responses are deterministic for a given (query body, filter, index build). Cache them in your server or CDN layer as you like; invalidate when the dataset is reloaded or documents change. Nothing in the API forbids caching, and empty-search (browse) responses are the usual candidates.
+
+**Never cache an empty answer.** A query that runs during a reload or against a not-ready dataset comes back with no records, and caching that pins the term empty long after the index is fine. Cache hits, not misses — and never cache a response carrying a `reason` or `didTimeOut`.
 
 ### Several content types in one index
 

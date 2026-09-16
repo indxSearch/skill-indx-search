@@ -383,8 +383,14 @@ query.CoverageSetup = new CoverageSetup { Truncate = false };
 ```csharp
 query.CoverageDepth = engine.Status.DocumentCount;
 ```
+A broad query whose count lands exactly on `CoverageDepth` is reporting the cap, not the data — hits
+past the depth are never confirmed. Cost is linear in depth, so full-dataset depth is effectively free
+below a few hundred thousand documents.
 
-**Empty search — browse mode with sorting and facets:**
+**Empty search — browse mode with sorting and facets.** `EnableFacets` is what makes empty text
+legal: without it the search is refused, returning an empty `Result` with a `Reason`, which is not the
+same as matching nothing.
+
 ```csharp
 var query = new Query("", 50)
 {
