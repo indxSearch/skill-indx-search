@@ -305,6 +305,27 @@ Put books, articles, events and authors in **one dataset** with a `contentType` 
 
 Model one document per work with editions as an array (`editions[].isbn`, `editions[].format`, `editions[].price`). Array fields index one value per element and a filter matches if **any** element matches, so "paperback under 200" works at variant level while results stay one card per work. Note that `removeDuplicates` is per-document-key dedupe, not a group-by.
 
+## Troubleshooting by symptom
+
+Most Indx failures are silent: a query the engine **refuses** looks like a query that found nothing.
+So check `reason` (C#: `Reason`) on every search before anything else — set means refused, `null`
+with no records means an honest no-match. Full page, kept in step with this list:
+[Troubleshooting](https://v5.docs.indx.co/troubleshooting).
+
+| Symptom | First suspect |
+|---|---|
+| Every query returns nothing | A `fieldBoosts` key that is not a searchable field — the one refusal that sets no `reason`; the message is `errorMessage` on `GET status`. Or the dataset is not `Ready` |
+| An empty query returns nothing | `enableFacets` missing (and at least one facetable field needed) |
+| A field is in results but never matches | It arrived through insert/update and was never indexed — only `replace` can add a field |
+| A configuration call fails with `400 invalidArgument` | It named a field the engine has not discovered — the mirror of the case above |
+| A count is suspiciously round | It equals `coverageDepth`: the cap, not the data |
+| List and facet counts disagree | They ran at different `coverageDepth` |
+| Ranking changed unexpectedly | `fieldBoosts` multiply the configured weight, they do not replace it |
+| `403 insufficientKeyScope` | The key's level is below the endpoint's requirement |
+| `404` on a team or dataset that exists | Outside the key's scope — deliberately identical to missing. A renamed dataset does this to keys that list it by name |
+| Works locally, `401` in production | Keys are signed per server; that key belongs to the other one |
+| A term stays empty after the index recovered | An empty answer was cached — cache hits, never misses |
+
 ## Capability summary
 
 Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the noted pattern · ❌ not offered.
@@ -352,6 +373,7 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 
 - [Indx Home](https://indx.co) — registration and licensing
 - [API Documentation](https://v5.docs.indx.co) — C# and HTTP API reference with How-To guides (v4 docs remain at docs.indx.co)
+- [Troubleshooting](https://v5.docs.indx.co/troubleshooting) — symptoms, causes and checks
 - [Privacy & hosting](https://v5.docs.indx.co/gdpr) — data residency, GDPR, DPA
 - **C# / .NET**
   - [IndxSearchLib NuGet](https://www.nuget.org/packages/IndxSearchLib/) — core search engine (.NET 10, v5.0.0)
