@@ -79,12 +79,138 @@ Because everything is team-scoped, the client needs a team slug. On registration
 
 ## 3. C# library (IndxSearchLib 4.x → 5.x)
 
-The embedded C# API is less affected than the HTTP API, but two things matter:
+Diffed from the public surface of `IndxSearchLib` 4.1.2 against 5.0.0. Everything below is a
+compile-time break unless marked otherwise, so a project that builds after these changes has
+dealt with the surface. Behaviour changes that do not break the build are called out separately,
+because they are the ones that pass review and surprise someone later.
 
-- **Target framework**: v5 requires **.NET 10**. Update the project's TFM.
-- **API surface**: field configuration and scoring are configured via `Field` / `FieldProxy` (searchable/filterable/facetable/sortable/wordIndexing, per-field `Weight`, per-field `BM25b`/`BM25k1`, and `HighResolution`). Verify any v4 field-setup or scoring calls against the current C# reference — see [csharp.md](csharp.md).
+### 3a. Target framework and logging
 
-> The exact v4→v5 C# method-level deltas are not enumerated here. Confirm them against the IndxSearchLib 5.x release notes / [csharp.md](csharp.md) before promising a specific code change, rather than guessing. (This section is intentionally conservative — fill it in with authoritative deltas when available.)
+- **`net9.0` to `net10.0`.** Update the TFM.
+- **`ILoggerFactory` is now the standard one.** v4 shipped its own `Indx.Utilities.ILoggerFactory`,
+  which is gone. The constructor takes `Microsoft.Extensions.Logging.ILoggerFactory`. Add the
+  `Microsoft.Extensions.Logging.Abstractions` reference and drop any adapter written for the old
+  interface.
+
+### 3b. Field weight is a number, not three levels
+
+v4 had `Field.Weight` as an enum with `Low`, `Med` and `High`, plus a separate
+`Field.WeightAsFloat` for finer control. v5 has one property:
+
+```csharp
+// v4
+field.Weight = Weight.High;
+field.WeightAsFloat = 2.5f;
+
+// v5
+field.Weight = 2.5f;          // float, default 1.0
+```
+
+The `Weight` enum and `WeightAsFloat` are both removed. Pick the number the old level meant to you
+rather than looking for a mapping table: there is no official one, because the enum was never
+backed by fixed constants a caller could rely on.
+
+### 3c. Scores are 16-bit
+
+This is the change most likely to pass the compiler in spirit and be wrong in practice.
+
+- `Result.Records` is `ScoreEntry16[]`, not `ScoreEntry[]`. The `ScoreEntry` struct is gone.
+- `ScoreEntry16.Score` is a `ushort` (0 to 65535). v4's `ScoreEntry.Score` was a `byte` (0 to 255).
+- `Result.TruncationScore` is a `ushort` for the same reason.
+
+Any threshold, percentage or bucket computed against 255 is now wrong by a factor of 257. Search
+the codebase for score arithmetic, not just for the type name: `score / 255.0`, `score > 200`, a
+cast to `byte`, a progress bar scaled to 255.
+
+### 3d. Filter creation reports the reason instead of throwing
+
+```csharp
+// v4
+Filter f = engine.CreateValueFilter("brand", "acme", isCaseSensitive: false);
+
+// v5
+if (engine.CreateValueFilter("brand", "acme", isCaseSensitive: false, out string error) is { } f)
+    query.Filter = f;
+else
+    // error says why: unknown field, not Filterable, unparseable bound or culture
+```
+
+The overloads without the `out string error` parameter are removed, on `SearchEngine` and on
+`ISearchEngine`, for both `CreateValueFilter` and `CreateRangeFilter`. A rejected filter returns
+null and fills `error`. **Null means rejected, never "no filter":** assigning it onward widens the
+search to the whole dataset.
+
+### 3e. Configuration is an object, not a number
+
+```csharp
+// v4
+var engine = new SearchEngine(logPrefix, loggerFactory, 400, "indx-developer.license");
+
+// v5
+var engine = new SearchEngine(logPrefix, loggerFactory, ConfigurationParameters.Default,
+                              "indx-developer.license");
+```
+
+`ConfigurationParameters.Default` is the production configuration and is what config 400 was.
+Vary it with `ConfigurationParameters.Default.With(...)` rather than hand-copying; three
+`IndexerSetup` presets ship (`Dense`, `Default`, `SingleWord`). The numbered profiles and the
+lookup that resolved them are gone, so there is no number to pass and none to get wrong.
+
+`new SearchEngine(licenseFileName)` is unchanged and still the shortest way in.
+
+- `Field.ConfigNumber` is removed.
+- The `Index(monitor, taskStartDelayMs, batchDelayMs, batchSize)` tuning overload is removed.
+  `Index(monitor)` remains.
+
+### 3f. An empty result now says why
+
+```csharp
+// v4
+Result.MakeEmptyResult(timedOut);
+
+// v5
+Result.MakeEmptyResult(timedOut, reason, systemState);
+```
+
+`Result` gains `Reason` (a `ProcessError`) and `SystemState`, so a caller can tell a timeout from a
+refused query from an engine that is not ready. Worth reading even if you never construct one:
+an empty result in v4 was silent about its cause.
+
+### 3g. Behaviour changes that do not break the build
+
+- **Segmentation is gone.** `AutoSegmentationSetup` is removed, and so is the behaviour: v4 split a
+  document longer than `MaxIndexTextLength` into overlapping segments sharing one key, so the tail
+  was still searchable. v5 cuts at the ceiling instead and reports it as
+  `SystemStatus.IndexedTextTruncated`. BM25F's per-field length normalisation is what replaced it.
+  If you index long documents, this changes which of them match.
+- **Query text over `MaxSearchTextLength` (default 300) is refused**, not truncated. The result is
+  empty with a `Reason` of `TooLongSearchText`. In v4 the query and index ceilings were one number.
+- **Out-of-range field values throw.** `Field.Weight` and `Field.BM25k1` reject a negative,
+  `Field.BM25b` anything outside [0, 1], with `ArgumentOutOfRangeException` (since 5.0.0-RC170926).
+  v4 accepted them and produced quietly wrong rankings. If you set these from configuration or user
+  input, validate before assigning.
+- **Utility types left the public surface**: `SpanAlloc`, `GaussianGenerator`, `Mean`, `Uniform`,
+  `UniformDiscrete`, `OrderPreservingHashSet<T>`, `RandomEnum<T>`, `ByteAsFloat`,
+  `FileNameValidity`, `VirtualMachineArithmetics`, `ConnectionStringHelper`. They were never part
+  of the search API, but a project that reached for one will not compile.
+
+### 3h. What v5 adds
+
+Not required for the upgrade, but this is usually why someone is doing it:
+
+- **Dynamic indexing.** `InsertJsonRecord(s)`, `UpdateJsonRecord(s)`, `DeleteJsonRecords`,
+  `UpdateField`, `UpdateFieldInFilter`. No `Index()` needed after a mutation.
+- **BM25F multi-field scoring**, with per-field `Field.BM25b` / `Field.BM25k1`, per-query
+  `Query.FieldBoosts`, and `SearchEngine.ScoringMode` reporting which path resolved.
+- **Synonyms.** `SynonymList`, `SynonymEntry`, `LoadSynonyms` / `SaveSynonyms`.
+- **Embeddings and vector search.** `Indx.Embeddings`, `Field.Embeddable`,
+  `Field.EmbeddingDimensions`, `SearchEngine.EmbeddingFields`.
+- **Field configuration as data.** `GetFieldConfiguration()` / `SetFieldConfiguration(FieldProxy[])`,
+  plus `DocumentFields.RequiresReindex(proposed)` to tell a flag change from a rebuild.
+- **`CreateInMemoryClone`**, the basis for building a new index beside a live one and swapping.
+- **`Field.HighResolution`**, and `Field.SampleValue` for showing what a field actually holds.
+- **HTTP proxy types** under `Indx.Http` (`QueryProxy`, `FilterProxy`, and the rest) for talking to
+  an Indx server. The old `Indx.CloudApi` names still compile as obsolete aliases.
 
 ---
 
@@ -100,8 +226,14 @@ The embedded C# API is less affected than the HTTP API, but two things matter:
 
 **C# embedded:**
 1. Bump the project to .NET 10 and `IndxSearchLib` 5.x.
-2. Rebuild; resolve compile errors against [csharp.md](csharp.md).
-3. Re-verify field configuration and scoring against the v5 reference.
+2. Swap `Indx.Utilities.ILoggerFactory` for `Microsoft.Extensions.Logging.ILoggerFactory` (3a).
+3. Replace `Weight.High` / `WeightAsFloat` with a float `Field.Weight` (3b).
+4. Fix every score computation for `ushort` instead of `byte` (3c). This one compiles either way
+   wherever a score is assigned to a wider type, so grep for the arithmetic.
+5. Add the `out string error` argument to filter creation, and handle null as rejected (3d).
+6. Replace the configuration number with `ConfigurationParameters.Default` (3e).
+7. Re-check long-document behaviour if you relied on segmentation, and query length limits (3g).
+8. Rebuild; resolve what is left against [csharp.md](csharp.md).
 
 ---
 
