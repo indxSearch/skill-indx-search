@@ -57,6 +57,11 @@ Tools:
 - **`get_document(team, dataset, key)`** — full JSON for a key.
 - **`get_synonyms(team, dataset)`** — the dataset's synonym list (an empty `entries` array when it has none). Explains why a search matched more than its literal words (queries expand through the list before scoring).
 
+For setting a dataset up rather than querying one:
+
+- **`get_status(team, dataset)`** — state, document count, scoring mode, error message, truncation flags and a `nextStep` line. Works while the dataset is **not** `Ready`, which is when it matters: poll it to watch an index build finish.
+- **`get_field_configuration(team, dataset)`** — the whole configuration including fields that are switched **off**, with `weight`, `bm25b`, `bm25k1`, whether a field was ever blank or missing, and a `sample` of its real content. Use this when deciding what to make searchable; use `describe_dataset` when writing a query.
+
 Connect with the endpoint URL + API key. Clients without a custom-header field use the `mcp-remote` bridge:
 
 ```json
@@ -316,6 +321,7 @@ with no records means an honest no-match. Full page, kept in step with this list
 |---|---|
 | Every query returns nothing | A `fieldBoosts` key that is not a searchable field — the one refusal that sets no `reason`; the message is `errorMessage` on `GET status`. Or the dataset is not `Ready` |
 | An empty query returns nothing | `enableFacets` missing (and at least one facetable field needed) |
+| The MCP `search` finds nothing but the app's search box finds hits | Not a fault. The MCP tool sets `includePatternMatches=false`; over HTTP `coverageSetup` is usually absent and it defaults to **true**. Pass `broaden: true` to compare like with like |
 | A field is in results but never matches | It arrived through insert/update and was never indexed — only `replace` can add a field |
 | A configuration call fails with `400 invalidArgument` | It named a field the engine has not discovered — the mirror of the case above |
 | A count is suspiciously round | It equals `coverageDepth`: the cap, not the data |
