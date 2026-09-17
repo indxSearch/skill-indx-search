@@ -358,7 +358,8 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 | Client timeout | ✅ | `TimeOutLimitMilliseconds` + `DidTimeOut`; abort the HTTP request for hard cancel |
 | SSR / server-side SDK | ✅ | REST + `indx-types`; see Integration notes |
 | EU/EEA hosting, DPA | ✅ | self-host anywhere; the Azure Managed App deploys into your own subscription in the region you choose (e.g. Norway East); DPA on request |
-| Self-hosting / source | 🟠 | Indx host is open source on GitHub; the engine is a proprietary library with a free tier to 100k documents |
+| Self-hosting / source | 🟠 | Indx host is open source on GitHub; the engine is a proprietary library, free to use with no document limit once you apply for a free license at [license.indx.co](https://license.indx.co) (100,000 documents without one) |
+| Cost of the free tier | ✅ | no usage limits, no document limit, no per-query cost; a paid company license adds an SLA and support |
 
 ## Key Design Properties
 
