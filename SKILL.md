@@ -61,6 +61,7 @@ For setting a dataset up rather than querying one:
 
 - **`get_status(team, dataset)`** — state, document count, scoring mode, error message, truncation flags and a `nextStep` line. Works while the dataset is **not** `Ready`, which is when it matters: poll it to watch an index build finish.
 - **`get_field_configuration(team, dataset)`** — the whole configuration including fields that are switched **off**, with `weight`, `bm25b`, `bm25k1`, whether a field was ever blank or missing, and a `sample` of its real content. Use this when deciding what to make searchable; use `describe_dataset` when writing a query.
+- **`set_field_configuration(team, dataset, fields)`** — the one tool that writes, and it needs a **Full** key. Each entry takes `field` plus any of `searchable`, `filterable`, `facetable`, `sortable`, `weight`, `bm25b`, `bm25k1`; anything omitted is left alone. The batch is validated whole, so a refused call changes nothing. A change that needs a rebuild returns at once and rebuilds on a shadow engine while the old index keeps serving: poll `get_status` until `Ready`.
 
 Connect with the endpoint URL + API key. Clients without a custom-header field use the `mcp-remote` bridge:
 
