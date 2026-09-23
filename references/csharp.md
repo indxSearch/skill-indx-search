@@ -141,6 +141,40 @@ engine.SetFieldConfiguration([
 
 `Weight` is a `float`. Higher values increase the field's influence on BM25 scoring relative to other searchable fields. Typical range: 0.5–3.0.
 
+`Filterable` and `Sortable` are refused on a field with no type, with an `ArgumentException`. A field
+that was null in every document analyzed has no type, so a filter cannot choose between a numeric and
+a categorical index and a sort cannot pick a comparator. `Searchable` and `Facetable` do not read the
+type and stay available: setting `Searchable` on such a field prepares it, so a record inserted later
+that does carry a value is indexed and found. Clearing either role is always allowed.
+
+### Changing Configuration on a Loaded Engine
+
+Ask before applying, because a change needs one of three things:
+
+```csharp
+var proposed = new[] { new FieldProxy { FieldName = "category", Facetable = true } };
+
+if (engine.DocumentFields.RequiresReload(proposed))
+{
+    // Searchable, WordIndexing, Embeddable, PreloadFilters, BM25k1, HighResolution.
+    // Only a Load consumes these. Applying one in place returns the engine to Created,
+    // and searches then fail with a reason rather than answering as if the field were empty.
+}
+else if (engine.DocumentFields.RequiresReindex(proposed))
+{
+    engine.SetFieldConfiguration(proposed);
+    engine.Index();   // includes a field getting its FIRST role: its positions are built here
+}
+else
+{
+    engine.SetFieldConfiguration(proposed);   // takes effect at query time
+}
+```
+
+The alternative to a reload, and what a server does to keep answering while it rebuilds, is
+`CreateInMemoryClone(monitor, fieldOverrides)`: the clone applies the change before it loads, then
+you swap it in.
+
 ### Per-Field BM25 Tuning (Advanced)
 
 By default all searchable fields share the same `BM25k1` value (1.2), which activates BM25F scoring (single unified index). Setting different `BM25k1` values across fields switches to per-field BM25 scoring:
@@ -212,7 +246,11 @@ if (result.Facets != null)
 
 Result properties:
 - `Records` — `ScoreEntry16[]` with `DocumentKey` (long) and `Score` (ushort, 0–65535). Coverage-confirmed matches always score higher than pure pattern matches.
-- `Facets` — `Dictionary<string, KeyValuePair<string, int>[]>` (field → value/count pairs)
+- `Facets` — `Dictionary<string, KeyValuePair<string, int>[]>` (field → value/count pairs). A facet
+  keys on the value as stored, so a corpus that spells a value both ways lists it twice. A value
+  filter compares case-insensitively unless built with `isCaseSensitive: true`, so clicking either
+  entry returns the documents of both spellings, and a facet count equals a filter count only for a
+  case-sensitive filter
 - `TruncationIndex` — index where coverage truncation occurred (–1 if no truncation)
 - `TruncationScore` — score value at the truncation point
 - `DidTimeOut` — `true` when the search could not be **served**, rather than served and found nothing.

@@ -206,7 +206,8 @@ Not required for the upgrade, but this is usually why someone is doing it:
 - **Embeddings and vector search.** `Indx.Embeddings`, `Field.Embeddable`,
   `Field.EmbeddingDimensions`, `SearchEngine.EmbeddingFields`.
 - **Field configuration as data.** `GetFieldConfiguration()` / `SetFieldConfiguration(FieldProxy[])`,
-  plus `DocumentFields.RequiresReindex(proposed)` to tell a flag change from a rebuild.
+  plus `DocumentFields.RequiresReindex(proposed)` and `RequiresReload(proposed)` to tell which of
+  three a change needs: nothing, an `Index()`, or loading the data again.
 - **`CreateInMemoryClone`**, the basis for building a new index beside a live one and swapping.
 - **`Field.HighResolution`**, and `Field.SampleValue` for showing what a field actually holds.
 - **HTTP proxy types** under `Indx.Http` (`QueryProxy`, `FilterProxy`, and the rest) for talking to
