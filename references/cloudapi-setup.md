@@ -212,6 +212,23 @@ The databases are stored at `./IndxData/` relative to the app. On Azure App Serv
 4. Place `.license` file in `IndxData/` (or configure `Indx__LicenseFile`)
 5. Set up OAuth if needed
 
+## Terminal Monitor
+
+Started from a terminal, the server draws a live monitor there: dataset states, document counts,
+idle-eviction countdowns, process and native memory, and an event stream. It needs no browser and
+no login.
+
+- `Ctrl+Q` detaches it and **leaves the server running**. `Ctrl+C` stops the server. `F10` shuts
+  the server down after a confirmation.
+- Where stdout is redirected (Azure log stream, `docker logs`, systemd) a full-screen application
+  cannot run, so it prints a periodic status block instead. That is **off by default**; set
+  `Indx__Monitor__Enabled` to `true` to get it in an App Service log stream.
+- `Indx__Monitor__StatusSeconds` sets how often that block is printed (default 30).
+- Start with `--no-monitor`, or set `Indx__Monitor__Enabled` to `false`, to turn it off entirely.
+
+A failed startup never draws the monitor, so a port conflict or a bad connection string still
+prints the way it always did.
+
 ## Request Size Limits
 
 The server accepts request bodies up to **2GB** — supports loading large JSON datasets via `POST …/load` and `POST …/load/text`.
