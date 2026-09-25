@@ -211,7 +211,8 @@ Not required for the upgrade, but this is usually why someone is doing it:
 - **`CreateInMemoryClone`**, the basis for building a new index beside a live one and swapping.
 - **`Field.HighResolution`**, and `Field.SampleValue` for showing what a field actually holds.
 - **HTTP proxy types** under `Indx.Http` (`QueryProxy`, `FilterProxy`, and the rest) for talking to
-  an Indx server. The old `Indx.CloudApi` names still compile as obsolete aliases.
+  an Indx server. The old `Indx.CloudApi` names from the 5.0 betas are gone; rename, the JSON is
+  the same.
 
 ---
 
