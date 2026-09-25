@@ -212,22 +212,24 @@ The databases are stored at `./IndxData/` relative to the app. On Azure App Serv
 4. Place `.license` file in `IndxData/` (or configure `Indx__LicenseFile`)
 5. Set up OAuth if needed
 
-## Terminal Monitor
+## Monitor
 
-Started from a terminal, the server draws a live monitor there: dataset states, document counts,
-idle-eviction countdowns, process and native memory, and an event stream. It needs no browser and
-no login.
+A live view of the instance: dataset states, document counts, idle-eviction countdowns, process and
+native memory, and an event stream carrying state changes, field configuration changes and anything
+the server logs.
 
-- `Ctrl+Q` detaches it and **leaves the server running**. `Ctrl+C` stops the server. `F10` shuts
-  the server down after a confirmation.
-- Where stdout is redirected (Azure log stream, `docker logs`, systemd) a full-screen application
-  cannot run, so it prints a periodic status block instead. That is **off by default**; set
-  `Indx__Monitor__Enabled` to `true` to get it in an App Service log stream.
-- `Indx__Monitor__StatusSeconds` sets how often that block is printed (default 30).
-- Start with `--no-monitor`, or set `Indx__Monitor__Enabled` to `false`, to turn it off entirely.
-
-A failed startup never draws the monitor, so a port conflict or a bad connection string still
-prints the way it always did.
+- **In the console**, under **Admin → Monitor**. Admin only, and the events are in memory only.
+  This is the one that works on a hosted deployment, where there is no terminal.
+- **In the terminal**, drawn automatically when the server is started from one. `Ctrl+Q` detaches
+  it and **leaves the server running**; `Ctrl+C` stops the server; `F10` shuts the server down
+  after a confirmation. Start with `--no-monitor`, or set `Indx__Monitor__Enabled` to `false`, to
+  turn it off. A failed startup never draws it, so a port conflict or a bad connection string
+  still prints the way it always did.
+- **Piped**, where stdout is redirected (Azure log stream, `docker logs`, systemd): a full-screen
+  application cannot run there, so it prints a periodic status block instead. **Off by default**;
+  set `Indx__Monitor__Enabled` to `true` to get it in an App Service log stream, and
+  `Indx__Monitor__StatusSeconds` to change how often (default 30). On App Service the console page
+  above is usually the better answer.
 
 ## Request Size Limits
 
