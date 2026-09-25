@@ -10,7 +10,7 @@ All endpoints require a **Bearer token** — an API key from the console (Accoun
 
 | Level | Can call | Use it for |
 |---|---|---|
-| **Search only** | `search`, `search/vector`, `search/hybrid`, `documents/lookup`, `filters/value`, `filters/range`, `filters/combine`, `filters/not`, `boosts/from-filter`, `fields/facetable`, `fields/filterable`, `fields/sortable`, `fields/searchable`, `status`, and `PUT` on an existing dataset | Websites and apps — the key is visible in the browser, and this is all it can do |
+| **Search only** | `search`, `search/vector`, `search/hybrid`, `documents/lookup`, `filters/value`, `filters/range`, `filters/combine`, `filters/not`, `boosts/from-filter`, `fields/facetable`, `fields/filterable`, `fields/sortable`, `fields/searchable`, `GET fields/configuration`, `status`, and `PUT` on an existing dataset | Websites and apps — the key is visible in the browser, and this is all it can do |
 | **Read only** | Every read: adds `export`, `fields/configuration`, `synonyms`, `boosts`, counts, dataset lists | Exports, reporting, agents, back-ups — keep it on a server |
 | **Full access** | Everything your team role allows, including loading, changing and deleting data | Your own servers and pipelines |
 

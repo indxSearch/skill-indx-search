@@ -23,8 +23,8 @@ After logging in, go to **Admin → Settings** to configure registration mode, e
 1. Log in at `/Account/Login`
 2. Navigate to `/account/api-key` and click **New API key**
 3. Choose the team, the access level and, optionally, the datasets the key may reach:
-   - **Search only** — search, document lookup, filters, field lists, status. The only level to use in a browser (every visitor can read the key).
-   - **Read only** — every read, including export and configuration. For exports, reporting, agents; keep server-side.
+   - **Search only** — search, document lookup, filters, field lists and field configuration, status. The only level to use in a browser (every visitor can read the key).
+   - **Read only** — every read, including export and synonyms. For exports, reporting, agents; keep server-side.
    - **Full access** — everything the owner's team role allows. For your own servers and pipelines.
 4. Choose the expiry (30, 90, 180 or 365 days), click **Create key**, and copy it — it is shown once
 
