@@ -10,7 +10,7 @@ All endpoints require a **Bearer token** — an API key from the console (Accoun
 
 | Level | Can call | Use it for |
 |---|---|---|
-| **Search only** | `search`, `search/vector`, `search/hybrid`, `documents/lookup`, `filters/value`, `filters/range`, `filters/combine`, `boosts/from-filter`, `fields/facetable`, `fields/filterable`, `fields/sortable`, `fields/searchable`, `status`, and `PUT` on an existing dataset | Websites and apps — the key is visible in the browser, and this is all it can do |
+| **Search only** | `search`, `search/vector`, `search/hybrid`, `documents/lookup`, `filters/value`, `filters/range`, `filters/combine`, `filters/not`, `boosts/from-filter`, `fields/facetable`, `fields/filterable`, `fields/sortable`, `fields/searchable`, `status`, and `PUT` on an existing dataset | Websites and apps — the key is visible in the browser, and this is all it can do |
 | **Read only** | Every read: adds `export`, `fields/configuration`, `synonyms`, `boosts`, counts, dataset lists | Exports, reporting, agents, back-ups — keep it on a server |
 | **Full access** | Everything your team role allows, including loading, changing and deleting data | Your own servers and pipelines |
 
@@ -60,7 +60,7 @@ Every error is an [RFC 9457 ProblemDetails](https://www.rfc-editor.org/rfc/rfc94
 | `400` | `operationFailed` | A server-side step failed cleanly (index build, shadow build, wake-up) | Read `detail`; retrying may work after fixing the cause |
 | `400` | `unknownFilter` | A referenced filter `hashString` could not be resolved | Re-create the filter and retry with the new token — never retry without the filter |
 
-A `hashString` is **opaque**: obtain it from `filters/value|range|combine`, pass it back, and do
+A `hashString` is **opaque**: obtain it from `filters/value|range|combine|not`, pass it back, and do
 not parse or construct it. It is durable — it survives cache eviction and a restart — so it can
 be held for the life of a dataset's field configuration. There is no NOT endpoint; exclude a
 value by filtering on the complementary values instead.
@@ -179,6 +179,7 @@ Insert, update, and delete without rebuilding the index. The dataset stays ready
 | POST | `filters/value` | `ValueFilterProxy` | Create equality filter → `FilterProxy` |
 | POST | `filters/range` | `RangeFilterProxy` | Create numeric range filter → `FilterProxy` |
 | POST | `filters/combine` | `CombinedFilterProxy` | Combine with AND/OR → `FilterProxy` |
+| POST | `filters/not` | `FilterProxy` | Negate: every document the filter does not match → `FilterProxy` |
 | POST | `boosts/from-filter` | `BoostProxy` | Create boost rule → `BoostProxy` |
 | POST | `filters/load` | — | Pre-load all registered filters into memory → `204` |
 | GET | `filters/count` | — | Count cached filters → `{"count": n}` |
