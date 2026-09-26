@@ -140,6 +140,14 @@ The overloads without the `out string error` parameter are removed, on `SearchEn
 null and fills `error`. **Null means rejected, never "no filter":** assigning it onward widens the
 search to the whole dataset.
 
+A filter is rejected when the field is unknown, is not `Filterable`, a bound or culture cannot be
+parsed, **or the filter is the wrong kind for the field's type** — a range filter needs numbers, a
+value filter needs non-numbers. v4 and the 5.0 betas accepted both and answered by walking every
+document; the value filter over a number was also wrong, comparing text, so `129` missed `129.0`.
+For an exact match on a numeric field use a range with equal limits. A serialized key of the
+refused kind no longer rebuilds either: `GetFilterFromKey` returns null, so a client holding such
+a token re-creates the filter.
+
 ### 3e. Configuration is an object, not a number
 
 ```csharp
@@ -183,8 +191,13 @@ an empty result in v4 was silent about its cause.
   was still searchable. v5 cuts at the ceiling instead and reports it as
   `SystemStatus.IndexedTextTruncated`. BM25F's per-field length normalisation is what replaced it.
   If you index long documents, this changes which of them match.
-- **Query text over `MaxSearchTextLength` (default 300) is refused**, not truncated. The result is
-  empty with a `Reason` of `TooLongSearchText`. In v4 the query and index ceilings were one number.
+- **Query text over `MaxSearchTextLength` is refused**, not truncated. The result is empty with a
+  `Reason` of `TooLongSearchText`. In v4 the query and index ceilings were one number.
+  `ConfigurationParameters.Default` supplies 300, but the `IndexerSetup` constructor takes
+  `maxSearchTextLength` as a **required** parameter with no default of its own — a fallback would
+  have quietly reinstated the 100 000-character index ceiling as the query limit. It is also the
+  first property added to the `Save`/`Load` file format, so a configuration file written by an
+  older version deserializes it as 0 and is rejected as non-positive, deliberately.
 - **Out-of-range field values throw.** `Field.Weight` and `Field.BM25k1` reject a negative,
   `Field.BM25b` anything outside [0, 1], with `ArgumentOutOfRangeException` (since 5.0.0-RC170926).
   v4 accepted them and produced quietly wrong rankings. If you set these from configuration or user

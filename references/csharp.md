@@ -262,13 +262,30 @@ Result properties:
 ## Filters
 
 ```csharp
-// Value filter — equality match on a filterable field
+// THE FIELD'S TYPE DECIDES THE FILTER KIND. A range filter needs a field whose values
+// are numbers; a value filter needs a field whose values are not. The other way round is
+// refused -- a value filter compares text, so on a number it missed 129.0 when asked for
+// 129. For an exact match on a numeric field use a range with EQUAL LIMITS, which
+// compares as numbers and reads the field's index. A number stored as a JSON *string* is
+// a text field, so it takes a value filter and refuses a range.
+//
 // The out parameter carries the reason when the call returns null (unknown field,
-// non-filterable field, type mismatch). Use `out var error` where you want to surface it.
+// non-filterable field, wrong kind for the type, unparseable bound or culture) and names
+// the alternative. Null means REJECTED, never "no filter": passing it on widens the
+// search to the whole dataset. Use `out var error` where you want to surface it.
+
+// Value filter — equality match on a filterable, non-numeric field
 Filter categoryFilter = engine.CreateValueFilter("category", "electronics", out _)!;
+
+// Case-sensitive variant. A facet count equals a filter count only for a case-sensitive
+// filter, and this one is answered by walking the documents rather than by the index.
+Filter exact = engine.CreateValueFilter("category", "Electronics", isCaseSensitive: true, out _)!;
 
 // Range filter — inclusive numeric range
 Filter priceFilter = engine.CreateRangeFilter("price", 10.0, 100.0, out _)!;
+
+// Equal limits are numeric equality — how to match one value on a numeric field
+Filter oneItem = engine.CreateRangeFilter("item_id", 129, 129, out _)!;
 
 // Combine with & (AND), | (OR), ! (NOT)
 Filter combined  = categoryFilter & priceFilter;
@@ -309,7 +326,8 @@ query.EnableBoost = true;
 Filter? frequentPurchases = null;
 foreach (long itemId in userFrequentItemIds)
 {
-    Filter f = engine.CreateValueFilter("item_id", itemId, out _)!;
+    // item_id holds numbers: a range with equal limits, not a value filter
+    Filter f = engine.CreateRangeFilter("item_id", itemId, itemId, out _)!;
     frequentPurchases = frequentPurchases is null ? f : frequentPurchases | f;
 }
 if (frequentPurchases is not null)

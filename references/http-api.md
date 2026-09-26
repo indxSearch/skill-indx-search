@@ -176,8 +176,8 @@ Insert, update, and delete without rebuilding the index. The dataset stays ready
 
 | Method | Operation | Body | Description |
 |--------|-----------|------|-------------|
-| POST | `filters/value` | `ValueFilterProxy` | Create equality filter → `FilterProxy` |
-| POST | `filters/range` | `RangeFilterProxy` | Create numeric range filter → `FilterProxy` |
+| POST | `filters/value` | `ValueFilterProxy` | Create equality filter on a **non-numeric** field → `FilterProxy`. On a numeric field: `400` naming `filters/range` instead |
+| POST | `filters/range` | `RangeFilterProxy` | Create range filter on a **numeric** field → `FilterProxy`. Equal limits = exact match. On a text field: `400` (a number stored as a JSON string is text) |
 | POST | `filters/combine` | `CombinedFilterProxy` | Combine with AND/OR → `FilterProxy` |
 | POST | `filters/not` | `FilterProxy` | Negate: every document the filter does not match → `FilterProxy` |
 | POST | `boosts/from-filter` | `BoostProxy` | Create boost rule → `BoostProxy` |
@@ -333,10 +333,14 @@ Use `POST .../documents/lookup` with the array of `documentKey` values to retrie
 ### Filter and Boost Models
 
 ```json
-// ValueFilterProxy — equality match
-{ "fieldName": "category", "value": "electronics" }
+// ValueFilterProxy — equality match on a field that does NOT hold numbers.
+// "value" may be a string, number or boolean. "isCaseSensitive" is optional and off by
+// default; a facet count equals a filter count only for a case-sensitive filter, and a
+// case-sensitive one is answered by walking the documents rather than by the index.
+{ "fieldName": "category", "value": "electronics", "isCaseSensitive": false }
 
-// RangeFilterProxy — inclusive numeric range
+// RangeFilterProxy — inclusive range on a field that DOES hold numbers.
+// Equal limits are numeric equality: that is how to match one value on a numeric field.
 { "fieldName": "price", "lowerLimit": 10.0, "upperLimit": 100.0 }
 
 // FilterProxy — handle returned by filter creation endpoints

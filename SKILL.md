@@ -91,7 +91,7 @@ Fields must be explicitly marked with their roles before indexing:
 | Role | Purpose | Notes |
 |------|---------|-------|
 | **Searchable** | Included in matching and scoring | At least one required. Supports weight for relative importance |
-| **Filterable** | Available for filter operations | Used with value filters and range filters |
+| **Filterable** | Available for filter operations | The field's **type** decides the kind: value filters on non-numeric fields, range filters on numeric ones |
 | **Facetable** | Used for aggregations | Returns value counts (histograms) |
 | **Sortable** | Enables result ordering | Works on numbers and strings. See sorting behavior below |
 | **WordIndexing** | Indexes entire words | Useful on fields with many repeating words. See below |
@@ -115,6 +115,10 @@ Note: Weights affect pattern recognition directly. A short text pattern in a lon
 ### Filters Must Be Server-Side
 
 Never filter results client-side after a search. The search only returns a limited number of results (`maxNumberOfRecordsToReturn`), so client-side filtering on that subset will miss documents. Always create filters server-side (`CreateValueFilter` / `CreateRangeFilter` / `CombineFilters` in C#; `POST filters/value` / `filters/range` / `filters/combine` over HTTP) and pass the filter in the query (`query.Filter` in C#, `QueryProxy.filter` in HTTP) so the server applies the filter during search.
+
+**Pick the kind by the field's type.** A range filter needs a field whose values are numbers; a value filter needs a field whose values are not. The other way round is refused — `null` with the reason in `error` in C#, `400` naming the alternative over HTTP. To match **one** value on a numeric field, use a range with **equal limits** (`CreateRangeFilter("item_id", id, id, out _)`, or `{"lowerLimit": 129, "upperLimit": 129}`): it compares as numbers and reads the field's posting index, where a value filter compares text and would miss `129.0`. A number stored as a JSON *string* is a text field, so it is the reverse — value filter yes, range filter no, and the fix is to store the values as numbers and load again.
+
+Saved **boost rules** are the exception: their `{field, value}` condition is accepted on a numeric field, because the server builds the equal-limits range for you.
 
 ### Search Behavior Guidance
 
@@ -348,7 +352,7 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 | Compound-word decomposition | ✅ | no rules needed |
 | Synonyms, editor-editable | ✅ | Cloud UI tab, HTTP, C# |
 | Facets with counts, per-type counts | ✅ | `Facetable`; zero-count values drop from the response — keep them greyed in the UI |
-| Value / range / boolean filters, AND/OR | ✅ | server-side filters; NOT is C#-only (`!filter`) |
+| Value / range / boolean filters, AND/OR/NOT | ✅ | server-side filters; NOT is `!filter` in C# and `POST filters/not` over HTTP |
 | Sorting by number/date/string | ✅ | `Sortable` |
 | Variant-level filtering | ✅ | array fields, any-element match |
 | Collapse variants to one card | 🟠 | model one document per work |
