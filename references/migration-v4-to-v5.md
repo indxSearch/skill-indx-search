@@ -91,6 +91,11 @@ because they are the ones that pass review and surprise someone later.
   which is gone. The constructor takes `Microsoft.Extensions.Logging.ILoggerFactory`. Add the
   `Microsoft.Extensions.Logging.Abstractions` reference and drop any adapter written for the old
   interface.
+- **No NLog set-up in the package.** v4's `Indx.Utilities.ILoggerFactory` was not only a type: its
+  `Create`/`GetFactory` wrote an NLog file for you, and the 5.0 betas and release candidates up to
+  RC260926 kept that as `Indx.Utilities.FileLoggerFactory`. It is gone, and the package no longer
+  depends on NLog. Configure the logging you use (NLog, Serilog, the console, Application Insights)
+  and pass its `ILoggerFactory` to the constructor; pass `null` for none.
 
 ### 3b. Field weight is a number, not three levels
 
