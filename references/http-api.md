@@ -75,6 +75,7 @@ value by filtering on the complementary values instead.
 | `404` | `teamNotFound` | The team doesn't exist **or you are not a member** (identical on purpose — team names can't be enumerated) | Verify via `GET /api/me/datasets` |
 | `404` | `datasetNotFound` | The dataset doesn't exist in this team | Create it, or fix the name |
 | `404` | `documentNotFound` | The addressed document key(s) don't exist | Fix the keys; batch deletes name every missing key and apply nothing |
+| `404` | `statisticsDisabled` | Statistics are switched off on this instance | Don't retry; the events/statistics routes are unavailable by operator choice |
 | `409` | `invalidState` | **Wrong lifecycle state** — the dataset can't serve this operation right now | See below |
 | `409` | `shadowBusy` | A background rebuild (replace / re-index / field-config) is already running | Retry after it completes |
 | `429` | `rateLimited` | Too many attempts from this address on an anonymous auth endpoint; this API key exceeded its requests-per-second budget (where the operator enabled it); or too many calls from this address carried no bearer token that validates (missing, expired or invalid) | Wait `Retry-After` seconds (also `retryAfterSeconds` in the body); do not retry sooner. For the per-key limit, spread calls out or batch them (`documents` endpoints take arrays). For the tokenless limit, authenticate — every one of those calls was going to 401 |
@@ -158,6 +159,11 @@ The individual role setters `PUT fields/searchable` / `fields/filterable` / `fie
 | POST | `search/hybrid` | `HybridQueryProxy` | Blended text + vector search → `EmbeddingResultEntry[]` |
 | POST | `documents/lookup` | `long[]` (document keys) | Retrieve full JSON records → `string[]` |
 
+Search responses carry an **`Indx-Query-Id`** header (CORS-exposed): an opaque id minted per
+search when statistics are enabled. Hold it briefly on the client and echo it in the
+select/convert events below so they join the search they belong to. Search also accepts an
+optional **`?subject=`** query parameter — see Statistics and Events.
+
 ### Dynamic Document Operations
 
 Insert, update, and delete without rebuilding the index. The dataset stays ready throughout.
@@ -210,6 +216,36 @@ Synonyms expand queries at search time (matching an entry appends its terms to t
 ```
 
 `direction`: `0` = Multidirectional (all terms equivalent — any of them triggers the group), `1` = OneWay (only `source` expands, into `terms` — for acronyms). Multi-word terms match as whole phrases. Note that expansion lengthens the query text, which lowers Coverage scores proportionally.
+
+### Statistics and Events
+
+The server counts every HTTP search itself (query text, hit count — that is what makes the
+zero-hit report exist), and the storefront reports what happened next. Event posts answer
+`202 Accepted` (queued, batch-written); an unknown or expired `queryId` is still accepted and
+counts on the document — it just finds no search to join. All statistics routes answer
+`404 statisticsDisabled` when the operator switched the feature off.
+
+| Method | Operation | Body / Query | Description |
+|--------|-----------|--------------|-------------|
+| POST | `events/select` | `{queryId?, documentKey, position, subject?}` | The user chose a result; `position` is 1-based in the list. Search key suffices → `202` |
+| POST | `events/convert` | `{queryId?, documentKey, type, value?, currency?, quantity?, subject?}` | Something valuable happened — `type` is your own name for it (`"order"`, `"addToCart"`); `value` is its worth (order total). `queryId` optional: an order may come long after the search. Search key → `202` |
+| GET | `statistics/overview` | `?days=30` | The window's totals with the rates computed server-side: `zeroHitRate`, `clickThroughRate` (searches with ≥1 select over ALL searches), `averageClickPosition` — `null` when the denominator is zero, never 0%. Read key |
+| GET | `statistics/timeseries` | `?days=30` | One row per UTC day (`date` as `yyyy-MM-dd`), zero rows included so charts have no holes. Read key |
+| GET | `statistics/queries` | `?days&limit&zeroHitsOnly` | Top queries with searches, zero-hits, selects, clicked-search count and position sum; `zeroHitsOnly=true` is the "searches without results" report. Read key |
+| GET | `statistics/documents` | `?days&limit` | Top documents: selects, converts, summed convert value. Read key |
+| GET | `statistics/subjects/{subject}` | `?limit=10` | One subject's lifetime top documents — the personalization read. Read key |
+| DELETE | `statistics` | — | Purge the dataset's statistics (Full key + team Admin) → `204` |
+| DELETE | `statistics/subjects/{subject}` | — | GDPR erasure of one subject: its edge rows are deleted and its raw rows anonymised, so aggregates stay true (Full key + team Admin) → `204` |
+
+**`subject`** is one optional opaque string you define: an end-user id, a session id, or a
+customer segment. Send it on search (`?subject=`) and on the events; omitted means anonymous
+(never invent a placeholder like "noname" — it would pollute every distinct count). It powers
+the per-subject top-N and is what the GDPR erasure targets.
+
+**Statistics survive dataset deletion and recreation** — they are keyed on the team and the
+dataset *name*, matching how document keys are yours. Deleting the dataset does not touch them;
+`DELETE statistics` is the one explicit way to start clean. Raw events are kept 90 days
+(configurable) and rolled up into daily aggregates that are kept until deleted.
 
 ### Lifecycle
 
