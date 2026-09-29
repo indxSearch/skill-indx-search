@@ -16,6 +16,10 @@ All endpoints require a **Bearer token** — an API key from the console (Accoun
 
 A key never exceeds its owner's role in the team: a Viewer can create Search and Read keys, not Full ones. Keys cannot be changed after they are created — create a new one and revoke the old. A key outside its limits gets the same answer as a missing team or dataset (`404 teamNotFound` / `datasetNotFound`); a call above its level gets `403 insufficientKeyScope`. Keys created before access levels existed are unscoped and reach every team you belong to — replace them.
 
+**Personal keys and team keys.** A personal key (Account → API keys) acts as its owner and never exceeds their team role; it stops working if they leave the team. A team key (Manage team → API keys, created by a team Admin) belongs to the team: its rights are its access level alone (Full access writes as an Editor; deleting datasets and managing the team give `403 insufficientRole`), it keeps working when its creator leaves, and every Admin of the team can see and revoke it. **For anything deployed (a production site, a shared server, CI), recommend a team key.** Personal keys suit a developer's own scripts and AI agents.
+
+A Search only key can be shown again from the key list; Read only and Full access keys are shown once, so a lost one means a new key. Keys are listed with their last four characters (`…a1b2`). Keys last 30 to 365 days; a team Search only key may never expire, and the team's Admins are warned 30 and 7 days before a team key expires. Rotate without downtime: create the new key, deploy it, then revoke the old one (revocation is immediate).
+
 **For a browser front-end, always a Search only key** limited to the datasets it searches: the key is readable by every visitor. Send it on every request:
 
 ```bash

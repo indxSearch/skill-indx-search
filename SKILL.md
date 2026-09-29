@@ -293,7 +293,7 @@ The C# NuGet API returns document keys and scores (not full documents) in `resul
 
 For React 19+ projects, [@indxsearch/intrface](https://github.com/indxSearch/indx-intrface) implements all of the above patterns as drop-in components: `SearchProvider`, `SearchInput`, `SearchResults`, `ValueFilterPanel`, `RangeFilterPanel`, `ActiveFiltersPanel`, `SortByPanel`, and more. See the [indx-intrface README](https://github.com/indxSearch/indx-intrface) for full component API.
 
-**The key a front-end ships is public.** `SearchProvider` sends its `preAuthenticatedToken` from the browser, so every visitor can read it. Always create it with the access level **Search only**, limited to the team and datasets the page searches — never a Read or Full access key. intrface 3.3.0+ needs nothing more; earlier versions also call `PUT …/datasets/{name}`, which a Search key may make on an existing dataset.
+**The key a front-end ships is public.** `SearchProvider` sends its `preAuthenticatedToken` from the browser, so every visitor can read it. Always create it with the access level **Search only**, limited to the team and datasets the page searches — never a Read or Full access key. For a production site make it a **team key** (Manage team → API keys, created by a team Admin), so it keeps working when the person who made it leaves the team; it can be set to never expire, and it can be shown again from the list if the value is lost. intrface 3.3.0+ needs nothing more; earlier versions also call `PUT …/datasets/{name}`, which a Search key may make on an existing dataset.
 
 ---
 
