@@ -109,7 +109,7 @@ Note: Weights affect pattern recognition directly. A short text pattern in a lon
 **Per-query field boosts** — adjust field importance for one search without reconfiguring: `query.FieldBoosts = { ["title"] = 2.0f }` in C#, `"fieldBoosts": { "title": 2.0 }` in the HTTP `search` body. Use this for "title matches first" ranking, or to A/B two weightings from the same index. Three rules:
 
 - A boost **multiplies** the field's configured `weight`, it does not replace it — `weight: 3.0` with a boost of `3.0` counts 9×. Leave a field out to keep its weight.
-- **Every key must be a searchable field.** A key that is not — unknown, or a field that was made non-searchable later — empties the whole search: HTTP answers `200` with no records and `reason: null`, C# an empty `Result`. It looks exactly like "no matches". When searches that sent `fieldBoosts` start returning nothing, compare the keys with `GET fields/configuration` before anything else, and remove a field from boosts when you remove `searchable` from it.
+- **Every key must be a searchable field.** A key that is not — unknown, or a field that was made non-searchable later — empties the whole search: HTTP answers `200` with no records and a `reason` naming the field, C# an empty `Result` with `Reason` set. Read `reason` before rendering "no matches". When searches that sent `fieldBoosts` start returning nothing, compare the keys with `GET fields/configuration` before anything else, and remove a field from boosts when you remove `searchable` from it.
 - Boosts apply only in **BM25F mode**: every searchable field has the same `bM25k1` (the default). With differing `bM25k1` the fields are scored separately and boosts are ignored (an invalid key still empties the search).
 
 ### Filters Must Be Server-Side
@@ -326,7 +326,7 @@ with no records means an honest no-match. Full page, kept in step with this list
 
 | Symptom | First suspect |
 |---|---|
-| Every query returns nothing | A `fieldBoosts` key that is not a searchable field — the one refusal that sets no `reason`; the message is `errorMessage` on `GET status`. Or the dataset is not `Ready` |
+| Every query returns nothing | A `fieldBoosts` key that is not a searchable field; `reason` names it. Or the dataset is not `Ready` |
 | An empty query returns nothing | `enableFacets` missing (and at least one facetable field needed) |
 | The MCP `search` finds nothing but the app's search box finds hits | Not a fault. The MCP tool sets `includePatternMatches=false`; over HTTP `coverageSetup` is usually absent and it defaults to **true**. Pass `broaden: true` to compare like with like |
 | A field is in results but never matches | It arrived through insert/update and was never indexed — only `replace` can add a field |

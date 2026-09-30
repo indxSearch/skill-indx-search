@@ -319,7 +319,7 @@ Full (with defaults shown):
 ```json
 { "fieldBoosts": { "title": 2.0, "description": 0.5 } }
 ```
-Every key must be a **searchable** field. A key that is not (unknown, or made non-searchable since) empties the whole search: `200`, no records, `reason: null`. A boost multiplies the weight — `weight: 3.0` × boost `2.0` = 6×; omitted fields keep their weight. Ignored when `bM25k1` differs between searchable fields (per-field scoring).
+Every key must be a **searchable** field. A key that is not (unknown, or made non-searchable since) empties the whole search: `200`, no records, and a `reason` naming the field. A boost multiplies the weight — `weight: 3.0` × boost `2.0` = 6×; omitted fields keep their weight. Ignored when `bM25k1` differs between searchable fields (per-field scoring).
 
 Full with CoverageSetup (defaults shown):
 ```json
