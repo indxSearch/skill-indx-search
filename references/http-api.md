@@ -219,8 +219,10 @@ Synonyms expand queries at search time (matching an entry appends its terms to t
 
 ### Statistics and Events
 
-The server counts every HTTP search itself (query text, hit count — that is what makes the
-zero-hit report exist), and the storefront reports what happened next. Event posts answer
+The server counts every HTTP search with text itself (query text, hit count — that is what
+makes the zero-hit report exist), and the storefront reports what happened next. An empty
+search (a browse page, a facet click) is not counted, and neither is the web console's search
+preview; the `Indx-Query-Id` header is sent either way. Event posts answer
 `202 Accepted` (queued, batch-written); an unknown or expired `queryId` is still accepted and
 counts on the document — it just finds no search to join. All statistics routes answer
 `404 statisticsDisabled` when the operator switched the feature off.
