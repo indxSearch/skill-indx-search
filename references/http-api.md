@@ -221,8 +221,10 @@ Synonyms expand queries at search time (matching an entry appends its terms to t
 
 The server counts every HTTP search with text itself (query text, hit count — that is what
 makes the zero-hit report exist), and the storefront reports what happened next. An empty
-search (a browse page, a facet click) is not counted, and neither is the web console's search
-preview; the `Indx-Query-Id` header is sent either way. Event posts answer
+search with a filter counts as browsing (per filter value, `statistics/filters`); without a
+filter it is not counted, and neither is the web console's search preview. The `Indx-Query-Id`
+header is sent either way. **Send `?session=<per-page-load random id>` on every search-as-you-type
+request**: only the search the visitor settled on is then counted, not each keystroke's prefix. Event posts answer
 `202 Accepted` (queued, batch-written); an unknown or expired `queryId` is still accepted and
 counts on the document — it just finds no search to join. All statistics routes answer
 `404 statisticsDisabled` when the operator switched the feature off.
@@ -233,6 +235,7 @@ counts on the document — it just finds no search to join. All statistics route
 | POST | `events/convert` | `{queryId?, documentKey, type, value?, currency?, quantity?, subject?}` | Something valuable happened — `type` is your own name for it (`"order"`, `"addToCart"`); `value` is its worth (order total). `queryId` optional: an order may come long after the search. Search key → `202` |
 | GET | `statistics/overview` | `?days=30` | The window's totals with the rates computed server-side: `zeroHitRate`, `clickThroughRate` (searches with ≥1 select over ALL searches), `averageClickPosition` — `null` when the denominator is zero, never 0%. Read key |
 | GET | `statistics/timeseries` | `?days=30` | One row per UTC day (`date` as `yyyy-MM-dd`), zero rows included so charts have no holes. Read key |
+| GET | `statistics/filters` | `?days&limit` | Browsing: uses and zero-hit count per filter value (`field`, `value`; a range has an empty `value`), with or without text. Read key |
 | GET | `statistics/queries` | `?days&limit&zeroHitsOnly` | Top queries with searches, zero-hits, selects, clicked-search count and position sum; `zeroHitsOnly=true` is the "searches without results" report. Read key |
 | GET | `statistics/documents` | `?days&limit` | Top documents: selects, converts, summed convert value. Read key |
 | GET | `statistics/subjects/{subject}` | `?limit=10` | One subject's lifetime top documents — the personalization read. Read key |
