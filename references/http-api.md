@@ -236,6 +236,7 @@ counts on the document — it just finds no search to join. All statistics route
 | GET | `statistics/overview` | `?days=30` | The window's totals with the rates computed server-side: `zeroHitRate`, `clickThroughRate` (searches with ≥1 select over ALL searches), `averageClickPosition` — `null` when the denominator is zero, never 0%. Read key |
 | GET | `statistics/timeseries` | `?days=30` | One row per UTC day (`date` as `yyyy-MM-dd`), zero rows included so charts have no holes. Read key |
 | GET | `statistics/filters` | `?days&limit` | Browsing: uses and zero-hit count per filter value (`field`, `value`; a range has an empty `value`), with or without text. Read key |
+| GET / PUT | `statistics/settings` | `{recordFilters}` | Whether each search's filter is stored (Browsing). On by default; switch off on datasets of people, where a filter value can be a name. Off erases the values already recorded. PUT needs a Full key and team admin |
 | GET | `statistics/queries` | `?days&limit&zeroHitsOnly` | Top queries with searches, zero-hits, selects, clicked-search count and position sum; `zeroHitsOnly=true` is the "searches without results" report. Read key |
 | GET | `statistics/documents` | `?days&limit` | Top documents: selects, converts, summed convert value. Read key |
 | GET | `statistics/subjects/{subject}` | `?limit=10` | One subject's lifetime top documents — the personalization read. Read key |
