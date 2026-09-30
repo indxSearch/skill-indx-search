@@ -224,7 +224,9 @@ makes the zero-hit report exist), and the storefront reports what happened next.
 search with a filter counts as browsing (per filter value, `statistics/filters`); without a
 filter it is not counted, and neither is the web console's search preview. The `Indx-Query-Id`
 header is sent either way. **Send `?session=<per-page-load random id>` on every search-as-you-type
-request**: only the search the visitor settled on is then counted, not each keystroke's prefix. Event posts answer
+request**: only the search the visitor settled on is then counted, not each keystroke's prefix, and the same
+search re-sent within 30 s (facets after a debounce, a new sort, load more) counts once; keep the
+`Indx-Query-Id` of the latest response for the click. A request for zero records is not counted. Event posts answer
 `202 Accepted` (queued, batch-written); an unknown or expired `queryId` is still accepted and
 counts on the document — it just finds no search to join. All statistics routes answer
 `404 statisticsDisabled` when the operator switched the feature off.
