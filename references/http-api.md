@@ -81,7 +81,7 @@ value by filtering on the complementary values instead.
 | `429` | `rateLimited` | Too many attempts from this address on an anonymous auth endpoint; this API key exceeded its requests-per-second budget (where the operator enabled it); or too many calls from this address carried no bearer token that validates (missing, expired or invalid) | Wait `Retry-After` seconds (also `retryAfterSeconds` in the body); do not retry sooner. For the per-key limit, spread calls out or batch them (`documents` endpoints take arrays). For the tokenless limit, authenticate — every one of those calls was going to 401 |
 | `500` | `internalError` | Unexpected server error; `traceId` included | Report the `traceId` |
 
-A `409 invalidState` is returned when an operation is valid but the dataset's `systemState` can't serve it (e.g. `POST search` before the dataset is `Ready`, `POST wakeup` when not `Hibernated`):
+A `409 invalidState` is returned when an operation is valid but the dataset's `systemState` can't serve it (e.g. `POST search` before the dataset is `Ready`, `POST wakeup` when the dataset is not hibernated):
 
 ```json
 {
@@ -96,7 +96,7 @@ A `409 invalidState` is returned when an operation is valid but the dataset's `s
 
 **Agent guidance:**
 - If `retryable` is `true` (states `Loading`/`Indexing`), poll `GET status` until `systemState` is `Ready` — respecting the **`Retry-After`** response header (seconds) — then retry the call.
-- If `retryable` is `false` (e.g. `Created`, `Hibernated`, `Error`), don't spin: take the corrective action in `detail`/`allowedStates` first — e.g. `Created` → `POST load` then `POST index`; `Hibernated` → `POST wakeup`; `Error` → read the included error and re-create/re-load.
+- If `retryable` is `false` (e.g. `Created`, `Error`), don't spin: take the corrective action in `detail`/`allowedStates` first. `Created` with `recordsOnDisk > 0` is a hibernated dataset: `POST wakeup`. `Created` without → `POST load` then `POST index`. `Error` → read the included error and re-create/re-load.
 - A 409 is **never** fixed by resending the same request immediately — change the state, not the payload.
 
 ### Datasets
@@ -439,7 +439,7 @@ Use `POST .../documents/lookup` with the array of `documentKey` values to retrie
 }
 ```
 
-`systemState`: `-1`=Hibernated, `0`=Created, `1`=Loading, `2`=Loaded, `3`=Indexing, `4`=Ready, `255`=Error.
+`systemState`: `0`=Created, `1`=Loading, `2`=Loaded, `3`=Indexing, `4`=Ready, `255`=Error. There is no hibernated state: a hibernated dataset reports `0`=Created with `recordsOnDisk > 0` (the old `-1`=Hibernated is gone).
 
 `GET status` returns `CloudSystemStatus`, which adds cloud-layer fields — most usefully `shadowBuildInProgress` (true while a background rebuild runs).
 
