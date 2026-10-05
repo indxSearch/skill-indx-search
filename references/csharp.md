@@ -61,7 +61,8 @@ Init(stream) → SetFieldConfiguration(...) → Load(stream) → Index() → Sea
 |--------|-------------|
 | `Init(Stream)` / `Init(Stream, ProcessMonitor?)` | Analyze JSON structure, discover fields. Blocks if monitor is null |
 | `GetFieldConfiguration()` | Returns `FieldProxy[]` of all discovered fields with their current settings |
-| `SetFieldConfiguration(FieldProxy[])` | Apply field roles and weights. Returns null on success, or the name of the first unknown field |
+| `TrySetFieldConfiguration(FieldProxy[], out string error)` | Apply field roles and weights. Returns `true` on success; `false` with the reason (such as an unknown field) in `error` |
+| `SetFieldConfiguration(FieldProxy[])` | `[Obsolete]`: the same, returning null on success or the name of the first unknown field. Use `TrySetFieldConfiguration` |
 | `Load(Stream)` / `Load(Stream, ProcessMonitor?)` | Load JSON documents into memory. Blocks if monitor is null |
 | `Index()` / `Index(ProcessMonitor)` | Build the search index. Check `Status.SystemState` for progress |
 | `Search(Query)` | Execute a search, returns `Result` |
