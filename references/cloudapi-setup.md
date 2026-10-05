@@ -26,7 +26,7 @@ After logging in, go to **Admin → Settings** to configure registration mode, e
    - **Search only** — search, document lookup, filters, field lists and field configuration, status. The only level to use in a browser (every visitor can read the key).
    - **Read only** — every read, including export and synonyms. For exports, reporting, agents; keep server-side.
    - **Full access** — everything the owner's team role allows. For your own servers and pipelines.
-4. Choose the expiry (30, 90, 180 or 365 days), click **Create key**, and copy it — it is shown once (a Search only key can be shown again from the list)
+4. Choose the expiry (30, 90, 180 or 365 days), click **Create key**, and copy it — it is shown once (Search only and Read only keys can be shown again from the list)
 
 That is a **personal** key: it acts as you and stops working if you leave the team. For a production website, a shared server or CI, a team Admin creates a **team key** instead under **Manage team → API keys**: it belongs to the team, survives its creator leaving, and a team Search only key can be set to never expire.
 
