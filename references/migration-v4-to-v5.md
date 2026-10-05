@@ -38,7 +38,7 @@ v5:  /api/teams/{teamName}/datasets/{dataSetName}/{operation}
 | Index | `GET /api/IndexDataSet/{ds}` | `POST /api/teams/{team}/datasets/{ds}/index` — `202` (poll `GET …/status`) |
 | Status | `GET /api/GetStatus/{ds}` | `GET /api/teams/{team}/datasets/{ds}/status` |
 | Get JSON | `POST /api/GetJson/{ds}` | `POST /api/teams/{team}/datasets/{ds}/documents/lookup` |
-| Field config | `PUT /api/SetSearchableFields/{ds}` (etc.) | `PUT /api/teams/{team}/datasets/{ds}/fields/searchable` (etc.) — `204`; prefer `PUT …/fields/configuration` |
+| Field config | `PUT /api/SetSearchableFields/{ds}` (etc.) | `PUT /api/teams/{team}/datasets/{ds}/fields/configuration` with one `FieldProxy` per field — `204`, or `202` when it started a rebuild of a Ready dataset. (The per-role `PUT fields/searchable` etc. existed in the 5.0 betas and were removed in October 2026; the per-role `GET`s remain) |
 
 Note the status-code semantics on v5: `201` on creation, `202` for the async index build, `204` (no body) for mutations, and count endpoints return `{"count": n}` instead of a naked number.
 

@@ -137,23 +137,26 @@ Surface `lostRoles` and `keyFieldFallback` to the user — they are the changes 
 
 ### Field Configuration
 
-**Recommended — single unified endpoint:**
+Roles are written by one endpoint; the role lists are read-only.
 
 | Method | Operation | Body | Description |
 |--------|-----------|------|-------------|
-| PUT | `fields/configuration` | `FieldProxy[]` | Set all field roles and weights in one call → `204` |
+| PUT | `fields/configuration` | `FieldProxy[]` | Set field roles, weights and BM25 parameters; only the properties sent are changed → `204` applied, or `202` + status when a rebuild was started |
 | GET | `fields/configuration` | — | Get current field configuration → `FieldProxy[]` |
-| PUT | `fields/embeddable` | `string[]` | Mark fields embeddable (call after analyze, before load) → `204` |
 | GET | `fields` | — | List all discovered field names → `string[]` |
-| GET | `fields/searchable` / `fields/filterable` / `fields/facetable` / `fields/sortable` / `fields/word-indexing` | — | List field names by role → `string[]` |
+| GET | `fields/searchable` / `fields/filterable` / `fields/facetable` / `fields/sortable` / `fields/word-indexing` / `fields/embeddable` | — | List field names by role → `string[]` |
 
-The individual role setters `PUT fields/searchable` / `fields/filterable` / `fields/facetable` / `fields/sortable` / `fields/word-indexing` also exist (`string[]` body → `204`) — prefer `PUT fields/configuration`.
+`PUT fields/configuration` checks the whole request first; a refused one is `400` and changes nothing. Before the dataset is indexed it always answers `204`. On a `Ready` dataset a change that needs the index rebuilt answers `202`: the rebuild runs in the background on a shadow engine and the old configuration serves until the swap. Poll `GET status` until `shadowBuildInProgress` is `false`, then check `shadowBuildError` (`null` = the new configuration is in use). During a rebuild another configuration change, `POST index` or a bulk document change gets `409 shadowBusy`.
+
+A vector field (`embeddable: true`) must be an array of numbers and can have no other role.
+
+The individual role setters (`PUT fields/searchable` / `fields/filterable` / `fields/facetable` / `fields/sortable` / `fields/word-indexing` / `fields/embeddable`) were removed in October 2026 and answer `405` — use `PUT fields/configuration`.
 
 ### Indexing and Search
 
 | Method | Operation | Body | Description |
 |--------|-----------|------|-------------|
-| POST | `index` | — | Start indexing → `202 Accepted` with a `SystemStatus` body; poll `GET status` until Ready |
+| POST | `index` | — | Start indexing → `202 Accepted` at once with the status body; the build runs in the background. First build: poll `GET status` until Ready. On a Ready dataset it is a rebuild on a shadow engine: poll until `shadowBuildInProgress` is `false`, then check `shadowBuildError` |
 | POST | `search` | `QueryProxy` | Full-text search → `Result` |
 | POST | `search/vector` | `VectorQueryProxy` | Embedding nearest-neighbour search → `EmbeddingResultEntry[]` |
 | POST | `search/hybrid` | `HybridQueryProxy` | Blended text + vector search → `EmbeddingResultEntry[]` |
@@ -441,7 +444,7 @@ Use `POST .../documents/lookup` with the array of `documentKey` values to retrie
 
 `systemState`: `-1`=Hibernated, `0`=Created, `1`=Loading, `2`=Loaded, `3`=Indexing, `4`=Ready, `255`=Error.
 
-`GET status` returns `CloudSystemStatus`, which adds cloud-layer fields — most usefully `shadowBuildInProgress` (true while a background rebuild runs).
+`GET status` returns `CloudSystemStatus`, which adds cloud-layer fields — most usefully `shadowBuildInProgress` (true while a background rebuild runs), `shadowBuildFinishedUtc` (when the last one ended) and `shadowBuildError` (why it failed, or `null`).
 
 ## HTTP API Workflow
 
