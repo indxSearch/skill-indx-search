@@ -168,7 +168,7 @@ optional **`?subject=`** query parameter — see Statistics and Events.
 
 Insert, update, and delete without rebuilding the index. The dataset stays ready throughout.
 
-**Unknown fields are accepted but never indexed** — stored in the raw JSON, invisible to search/filter/facet/sort, field configuration unchanged, no warning (only `PATCH` on an unknown field returns 400). Add fields via `replace` (see Data Loading). Missing non-key fields → null; missing key field → whole batch rejected.
+**Unknown fields are refused.** An insert or update carrying a field that is not in the field configuration returns `400 invalidArgument` naming the field, and stores nothing: one such document fails its whole batch. Add fields with `replace` (see Data Loading). Missing non-key fields are treated as null; a missing key field rejects the whole batch.
 
 | Method | Operation | Body | Description |
 |--------|-----------|------|-------------|
