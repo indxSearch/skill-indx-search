@@ -246,9 +246,12 @@ counts on the document — it just finds no search to join. All statistics route
 | GET | `statistics/queries` | `?days&limit&uncoveredOnly&order` | Top queries with searches, selects, clicked-search count and position sum. `uncoveredOnly=true` lists the misspelled searches (coverage confirmed nothing) with `uncoveredChosen` (a result chosen anyway: fuzzy search found it) and `mostChosenDocument` (the result chosen most). `order`: `searches` (default), `lowestClickThrough` (searched often, chosen from rarely: missing what people want, or ranking it too low), `highestClickThrough`, `chosenAnyway` (with `uncoveredOnly`); the two click-through orders leave out queries searched fewer than five times. Read key |
 | GET | `statistics/queries/documents` | `?text&days&limit` | For one query (`text`, lowercased like the query list): every document chosen from its results with `selects`, `positionSum` and the `converts` from the same searches, most chosen first. Tells whether a rarely chosen query found the thing itself or a substitute. From the raw rows, so up to 90 days back. `text` missing → `400`. Read key |
 | GET | `statistics/documents` | `?days&limit` | Top documents: selects and conversions. Read key |
+| GET | `statistics/sources` | `?days=30` | The surfaces searched from in the window, most searched first: `source` and `searches` (counted as the overview counts them); searches sent without `?source=` are the row with `source: null`. Read key |
 | GET | `statistics/subjects/{subject}` | `?limit=10` | One subject's lifetime top documents — the personalization read. Read key |
 | DELETE | `statistics` | — | Purge the dataset's statistics (Full key + team Admin) → `204` |
 | DELETE | `statistics/subjects/{subject}` | — | GDPR erasure of one subject: its edge rows are deleted and its raw rows anonymised, so aggregates stay true (Full key + team Admin) → `204` |
+
+**One surface:** `overview`, `timeseries`, `queries`, `queries/documents`, `documents` and `filters` take `?source=` and then count only the searches sent with it. A select or conversion counts for the surface of the search its `queryId` names; one without a `queryId` is in the totals only. An unknown source gives zeros, not the totals. Read from the raw rows, so up to 90 days back by default. The console's Statistics tab has a surface selector for the same split.
 
 **`subject`** is one optional opaque string you define: an end-user id, a session id, or a
 customer segment. Send it on search (`?subject=`) and on the events; omitted means anonymous
