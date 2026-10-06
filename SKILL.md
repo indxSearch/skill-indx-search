@@ -39,7 +39,7 @@ If the user is on **v5**, proceed normally. If on **v4**, do **not** hand them v
 
 ## Choosing Your Integration Path
 
-**C# / .NET project** → Use the [IndxSearchLib NuGet package](https://www.nuget.org/packages/IndxSearchLib/) directly (.NET 10, v5.0.0). Embed search into your application with no external dependencies. See [references/csharp.md](references/csharp.md) for full API reference.
+**C# / .NET project** → Use the [IndxSearchLib NuGet package](https://www.nuget.org/packages/IndxSearchLib/) directly (.NET 10, v5.0.2). Embed search into your application with no external dependencies. See [references/csharp.md](references/csharp.md) for full API reference.
 
 **Any other tech stack** (Node.js, Python, Java, etc.) → Deploy the [Indx](https://github.com/indxSearch/Indx) HTTP API server and interact via REST (.NET 10). Recommended deployment target: Azure App Service. See [references/cloudapi-setup.md](references/cloudapi-setup.md) for setup and deployment, and [references/http-api.md](references/http-api.md) for endpoints, schemas, and data loading.
 
@@ -205,7 +205,7 @@ Mark a field `Embeddable`, load vectors with the documents, and use:
 - `POST …/search/vector` — `{ fieldName, vector, maxResults, filter? }`: pure semantic nearest-neighbour (HNSW). Best for **"more like this"**, related items, cross-sell rails.
 - `POST …/search/hybrid` — `{ text, vector, alpha, maxNumberOfRecordsToReturn, filter? }`: `alpha · vectorScore + (1 − alpha) · textScore`. Best for meaning-plus-keyword queries (*grisebok* finding *Peppa Gris*).
 
-Indx **stores and searches** vectors; it does not generate them — bring embeddings from your own model. Filters apply to both. Details: [references/http-api.md](references/http-api.md#vector--hybrid-models).
+Indx **stores and searches** vectors; it does not generate them — bring embeddings from your own model. Vectors of any length are accepted: Indx brings each to unit length, so scores are cosine similarity. Insert, update and delete work on datasets with vector fields, and the server keeps a sleeping dataset's vector graph on disk so it wakes without rebuilding it. Filters apply to both. Details: [references/http-api.md](references/http-api.md#vector--hybrid-models).
 
 ---
 
@@ -390,7 +390,7 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 - [Troubleshooting](https://v5.docs.indx.co/troubleshooting) — symptoms, causes and checks
 - [Privacy & hosting](https://v5.docs.indx.co/gdpr) — data residency, GDPR, DPA
 - **C# / .NET**
-  - [IndxSearchLib NuGet](https://www.nuget.org/packages/IndxSearchLib/) — core search engine (.NET 10, v5.0.0)
+  - [IndxSearchLib NuGet](https://www.nuget.org/packages/IndxSearchLib/) — core search engine (.NET 10, v5.0.2)
 - **HTTP API**
   - [Indx](https://github.com/indxSearch/Indx) — self-host server template (ASP.NET Core)
   - OpenAPI spec — every Indx server publishes its own at `/swagger/v2.0-beta/swagger.json` (e.g. `https://localhost:5001/swagger/v2.0-beta/swagger.json`)

@@ -6,7 +6,7 @@
 dotnet add package IndxSearchLib
 ```
 
-Targets **.NET 10.0**. Current version: **5.0.0**.
+Targets **.NET 10.0**. Current version: **5.0.2**.
 
 ## SearchEngine Constructor
 
@@ -17,8 +17,9 @@ var engine = new SearchEngine();
 // With license file
 var engine = new SearchEngine("indx-developer.license");
 
-// With logging and custom config (400 is recommended for most use cases)
-var engine = new SearchEngine(logPrefix: "MyApp", factory: loggerFactory, configurationNumber: 400, licenseFileName: "indx-developer.license");
+// With logging and a configuration (ConfigurationParameters.Default suits most cases)
+var engine = new SearchEngine(logPrefix: "MyApp", factory: loggerFactory,
+    configuration: ConfigurationParameters.Default, licenseFileName: "indx-developer.license");
 ```
 
 ## Basic Usage
@@ -33,12 +34,13 @@ using var stream = File.OpenRead("products.json");
 engine.Init(stream);
 
 // 2. Configure fields
-engine.SetFieldConfiguration([
+if (!engine.TrySetFieldConfiguration([
     new FieldProxy { FieldName = "name",        Searchable = true, Weight = 2.0f },
     new FieldProxy { FieldName = "description", Searchable = true, Weight = 1.0f },
     new FieldProxy { FieldName = "category",    Filterable = true, Facetable = true },
     new FieldProxy { FieldName = "price",       Filterable = true, Sortable = true },
-]);
+], out string error))
+    throw new InvalidOperationException(error);
 
 // 3. Load and index
 stream.Position = 0;
@@ -52,7 +54,7 @@ var result = engine.Search(new Query("wireless headphones", 20));
 ## SearchEngine Lifecycle
 
 ```
-Init(stream) → SetFieldConfiguration(...) → Load(stream) → Index() → Search(query)
+Init(stream) → TrySetFieldConfiguration(...) → Load(stream) → Index() → Search(query)
 ```
 
 **Core methods:**
@@ -62,6 +64,7 @@ Init(stream) → SetFieldConfiguration(...) → Load(stream) → Index() → Sea
 | `Init(Stream)` / `Init(Stream, ProcessMonitor?)` | Analyze JSON structure, discover fields. Blocks if monitor is null |
 | `GetFieldConfiguration()` | Returns `FieldProxy[]` of all discovered fields with their current settings |
 | `TrySetFieldConfiguration(FieldProxy[], out string error)` | Apply field roles and weights. Returns `true` on success; `false` with the reason (such as an unknown field) in `error` |
+| `TryValidateFieldConfiguration(FieldProxy[], out string error)` | Whether `TrySetFieldConfiguration` would accept the same argument, changing nothing. For applying the change later or on a clone |
 | `SetFieldConfiguration(FieldProxy[])` | `[Obsolete]`: the same, returning null on success or the name of the first unknown field. Use `TrySetFieldConfiguration` |
 | `Load(Stream)` / `Load(Stream, ProcessMonitor?)` | Load JSON documents into memory. Blocks if monitor is null |
 | `Index()` / `Index(ProcessMonitor)` | Build the search index. Check `Status.SystemState` for progress |
@@ -128,21 +131,24 @@ foreach (var field in engine.GetFieldConfiguration())
 
 ### Applying Configuration
 
-Use `SetFieldConfiguration` to configure fields in a single call. Only set the properties that matter — null properties are left unchanged.
+Use `TrySetFieldConfiguration` to configure fields in a single call. Only set the properties that matter — null properties are left unchanged.
+Every refusal (an unknown field, a negative weight, a vector field given another role) returns
+`false` with the reason in `error`, and nothing is applied.
 
 ```csharp
-engine.SetFieldConfiguration([
+engine.TrySetFieldConfiguration([
     new FieldProxy { FieldName = "title",       Searchable = true, Weight = 2.0f },
     new FieldProxy { FieldName = "description", Searchable = true, Weight = 1.0f },
     new FieldProxy { FieldName = "category",    Filterable = true, Facetable = true },
     new FieldProxy { FieldName = "price",       Filterable = true, Sortable = true },
     new FieldProxy { FieldName = "rating",      Sortable = true },
-]);
+], out string error);
 ```
 
 `Weight` is a `float`. Higher values increase the field's influence on BM25 scoring relative to other searchable fields. Typical range: 0.5–3.0.
 
-`Filterable` and `Sortable` are refused on a field with no type, with an `ArgumentException`. A field
+`Filterable` and `Sortable` are refused on a field with no type: `TrySetFieldConfiguration` returns
+`false` with the reason, and the setters on `Field` throw `ArgumentException`. A field
 that was null in every document analyzed has no type, so a filter cannot choose between a numeric and
 a categorical index and a sort cannot pick a comparator. `Searchable` and `Facetable` do not read the
 type and stay available: setting `Searchable` on such a field prepares it, so a record inserted later
@@ -163,12 +169,12 @@ if (engine.DocumentFields.RequiresReload(proposed))
 }
 else if (engine.DocumentFields.RequiresReindex(proposed))
 {
-    engine.SetFieldConfiguration(proposed);
+    engine.TrySetFieldConfiguration(proposed, out string error);
     engine.Index();   // includes a field getting its FIRST role: its positions are built here
 }
 else
 {
-    engine.SetFieldConfiguration(proposed);   // takes effect at query time
+    engine.TrySetFieldConfiguration(proposed, out string error);   // takes effect at query time
 }
 ```
 
@@ -194,7 +200,7 @@ After configuring once, save to skip `Init` on subsequent loads:
 ```csharp
 // First run: analyze, configure, save
 engine.Init(stream);
-engine.SetFieldConfiguration([...]);
+engine.TrySetFieldConfiguration([...], out string error);
 engine.SaveFieldConfiguration("fieldconfig.json");
 
 // Subsequent runs: load config (skip Init)
@@ -395,6 +401,36 @@ engine.DeleteRecordsInFilter(priceFilter);
 ```
 
 A small `avgdl` drift accumulates over many incremental operations. A full `Index()` re-normalises it when needed.
+
+## Vector Fields
+
+Mark an array-of-numbers field `Embeddable` and load the vectors with the documents. A vector
+field has no other role. After `Index()`, search it through `engine.EmbeddingFields["embedding"]`
+(`IEmbeddingIndex.Search(vector, maxResults)`), or merge with a text result through
+`IEmbeddingIndex.MergeHybrid`.
+
+- **Any length is accepted.** Each vector is brought to unit length when stored and when searched
+  for, so a score is the cosine similarity.
+- **Insert, update and delete work** on a dataset with vector fields. A removed vector leaves a
+  node behind in the graph; the graph is rebuilt in the background once enough have gathered
+  (`EmbeddingSetup.AutomaticRebuild`, on by default). `IEmbeddingIndex.RebuildDue` reports it when
+  automatic rebuilds are off, and `Index()` rebuilds.
+- **Save the graph to skip building it.** Building is the slow part of loading vectors.
+  `SaveEmbeddings(path, out error)` writes every vector field's graph; `LoadEmbeddings(path, out
+  error)`, called after the field configuration is set and before `Load`, has that `Load` take the
+  saved graph instead of building one. The file need not match the documents exactly: the graph is
+  brought in line with what is loaded, or built as usual when more than a fifth differs.
+  `IEmbeddingIndex.RestoredFromSaved` says which happened.
+- **Memory.** `ConfigurationParameters.EmbeddingSetup` decides how vectors are held: `GraphVectors`
+  (`VectorStorage.Int16`, the default, or `Float32`) for the search graph, and `DocumentVectors`
+  (`Float32` default, `Int16`, `Text`, or `NotKept`) for the document's own copy. `Text` returns
+  every document character for character; with `Float32` a number may come back spelled
+  differently (`0.10` as `0.1`).
+
+```csharp
+var config = ConfigurationParameters.Default.With(
+    embeddingSetup: EmbeddingSetup.Default.With(documentVectors: DocumentVectorStorage.Text));
+```
 
 ## Coverage Control
 
