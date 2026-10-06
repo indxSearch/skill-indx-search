@@ -251,6 +251,8 @@ counts on the document — it just finds no search to join. All statistics route
 | DELETE | `statistics` | — | Purge the dataset's statistics (Full key + team Admin) → `204` |
 | DELETE | `statistics/subjects/{subject}` | — | GDPR erasure of one subject: its edge rows are deleted and its raw rows anonymised, so aggregates stay true (Full key + team Admin) → `204` |
 
+**Checking that clicks join their search:** the event posts answer `202` before anything is written and accept an unknown `queryId`, so they cannot say whether a click joined. Read it back instead, a few seconds later: after a counted search and a click carrying its `Indx-Query-Id`, `GET statistics/queries/documents?days=1&text=<query>` lists the clicked document. A click that did not join counts on the document only (`statistics/documents`), not on the query. A `count=false` search and its clicks are left out of the reads, so check with a counted one.
+
 **One surface:** `overview`, `timeseries`, `queries`, `queries/documents`, `documents` and `filters` take `?source=` and then count only the searches sent with it. A select or conversion counts for the surface of the search its `queryId` names; one without a `queryId` is in the totals only. An unknown source gives zeros, not the totals. Read from the raw rows, so up to 90 days back by default. The console's Statistics tab has a surface selector for the same split.
 
 **`subject`** is one optional opaque string you define: an end-user id, a session id, or a

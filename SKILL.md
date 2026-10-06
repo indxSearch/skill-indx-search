@@ -365,8 +365,8 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 | Semantic / vector / hybrid search | ✅ | bring your own embeddings |
 | Related items / more-like-this | 🟠 | vector search on the item's embedding |
 | Spell-check "did you mean" | ❌ | not needed: the corrected match is returned directly |
-| Search analytics (null results, popular queries) | ❌ | only a search counter; log `query.LogPrefix` into your own pipeline |
-| Behavioural tracking / consent events | ❌ | none by design — no telemetry in the engine |
+| Search analytics (null results, popular queries) | ✅ | Indx server: top queries, searches without an exact match, fuzzy finds, click-through, top documents, per search surface (`?source=`); a Statistics tab in the console. See [references/http-api.md](references/http-api.md#statistics-and-events). The C# library has a search counter only |
+| Click and conversion events | ✅ | Indx server: `events/select` and `events/convert`, sent by your front-end with the search's `Indx-Query-Id`. Indx sets no cookies and sends no telemetry; you choose what to send, `subject` is optional, and one subject can be erased |
 | A/B testing of relevance | 🟠 | `FieldBoosts` per query, or a second engine via `CreateInMemoryClone` |
 | Client timeout | ✅ | `TimeOutLimitMilliseconds` + `DidTimeOut`; abort the HTTP request for hard cancel |
 | SSR / server-side SDK | ✅ | REST + `indx-types`; see Integration notes |
