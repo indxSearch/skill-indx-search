@@ -331,7 +331,8 @@ with no records means an honest no-match. Full page, kept in step with this list
 | The MCP `search` finds nothing but the app's search box finds hits | Not a fault. The MCP tool sets `includePatternMatches=false`; over HTTP `coverageSetup` is usually absent and it defaults to **true**. Pass `broaden: true` to compare like with like |
 | A field is in results but never matches | It arrived through insert/update and was never indexed — only `replace` can add a field |
 | A configuration call fails with `400 invalidArgument` | It named a field the engine has not discovered — the mirror of the case above |
-| A count is suspiciously round | It equals `coverageDepth`: the cap, not the data |
+| A count is suspiciously round | It equals `coverageDepth`: the cap, not the data. The depth may be the dataset's: check the `Indx-Query-Parameters` response header |
+| Coverage acts differently from what the request implies (truncates, no typos, fewer hits) | The request left a value out and the dataset's query parameters set it. The `Indx-Query-Parameters` header names which; `GET …/query-parameters` shows them. Send the value to override |
 | List and facet counts disagree | They ran at different `coverageDepth` |
 | Ranking changed unexpectedly | `fieldBoosts` multiply the configured weight, they do not replace it |
 | `403 insufficientKeyScope` | The key's level is below the endpoint's requirement |

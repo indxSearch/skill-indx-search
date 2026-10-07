@@ -304,13 +304,13 @@ Minimal:
 { "text": "search terms", "maxNumberOfRecordsToReturn": 30 }
 ```
 
-Full (with defaults shown):
+Full (with defaults shown; `coverageDepth` and `coverageSetup` are best left out, see below):
 ```json
 {
   "text": "search terms",
   "maxNumberOfRecordsToReturn": 30,
   "enableCoverage": true,
-  "coverageDepth": 500,
+  "coverageDepth": null,
   "enableFacets": false,
   "enableBoost": false,
   "removeDuplicates": true,
@@ -339,7 +339,30 @@ Full (with defaults shown):
 ```
 Every key must be a **searchable** field. A key that is not (unknown, or made non-searchable since) empties the whole search: `200`, no records, and a `reason` naming the field. A boost multiplies the weight — `weight: 3.0` × boost `2.0` = 6×; omitted fields keep their weight. Ignored when `bM25k1` differs between searchable fields (per-field scoring).
 
-Full with CoverageSetup (defaults shown):
+#### Coverage values: request, then dataset, then default
+
+`coverageDepth` and every property of `coverageSetup` are resolved **one at a time**: the value the
+request sends, else the dataset's **query parameters**, else the engine default shown below. The
+dataset's values are set on the console's Query parameters tab or with the API:
+
+```
+GET    /api/teams/{team}/datasets/{ds}/query-parameters   → { "parameters": {…}, "effective": {…} }
+PUT    /api/teams/{team}/datasets/{ds}/query-parameters   body: { "coverageDepth": 300, "coverageSetup": { "truncate": false } }
+DELETE /api/teams/{team}/datasets/{ds}/query-parameters
+```
+
+`parameters` holds what the dataset sets (null elsewhere); `effective` is what a search that sends
+no coverage values runs with. A search key may `GET` it; `PUT`/`DELETE` need write access. Changes
+apply from the next search, no reindex.
+
+- **Send only what the search must decide.** Every value sent overrides the dataset's, so sending
+  the whole object with defaults (intrface ≤ 3.10 does) silently ignores the site owner's settings.
+- **A search that used a dataset value says so** in the `Indx-Query-Parameters` response header,
+  e.g. `coverageDepth, coverageSetup.truncate`. Absent when nothing came from the dataset.
+- In C#, `QueryProxy.CoverageDepth` is `int?` and `QueryProxy.CoverageSetup` is a
+  `CoverageSetupProxy` with every property nullable (IndxSearchLib 5.0.3+).
+
+Full with CoverageSetup (engine defaults shown):
 ```json
 {
   "text": "search terms",
