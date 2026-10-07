@@ -322,7 +322,7 @@ Model one document per work with editions as an array (`editions[].isbn`, `editi
 Most Indx failures are silent: a query the engine **refuses** looks like a query that found nothing.
 So check `reason` (C#: `Reason`) on every search before anything else — set means refused, `null`
 with no records means an honest no-match. Full page, kept in step with this list:
-[Troubleshooting](https://v5.docs.indx.co/troubleshooting).
+[Troubleshooting](https://docs.indx.co/troubleshooting).
 
 | Symptom | First suspect |
 |---|---|
@@ -387,9 +387,9 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 ## Resources
 
 - [Indx Home](https://indx.co) — registration and licensing
-- [API Documentation](https://v5.docs.indx.co) — C# and HTTP API reference with How-To guides (v4 docs remain at docs.indx.co)
-- [Troubleshooting](https://v5.docs.indx.co/troubleshooting) — symptoms, causes and checks
-- [Privacy & hosting](https://v5.docs.indx.co/gdpr) — data residency, GDPR, DPA
+- [API Documentation](https://docs.indx.co) — C# and HTTP API reference with How-To guides (v4 docs are at v4.docs.indx.co)
+- [Troubleshooting](https://docs.indx.co/troubleshooting) — symptoms, causes and checks
+- [Privacy & hosting](https://docs.indx.co/gdpr) — data residency, GDPR, DPA
 - **C# / .NET**
   - [IndxSearchLib NuGet](https://www.nuget.org/packages/IndxSearchLib/) — core search engine (.NET 10, v5.0.2)
 - **HTTP API**
