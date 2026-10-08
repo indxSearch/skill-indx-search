@@ -135,6 +135,34 @@ A `409 invalidState` is returned when an operation is valid but the dataset's `s
 
 Surface `lostRoles` and `keyFieldFallback` to the user — they are the changes that alter search behaviour. Boost rules referencing a removed field go dormant (not deleted) and re-apply if the field returns.
 
+#### What each call does to data already in the dataset
+
+The calls are not interchangeable, and the difference is what happens to what is there:
+
+| Call | Documents already there | Field configuration | Serving while it runs |
+|---|---|---|---|
+| `analyze` | **Dropped from memory.** On a dataset that has been loaded, the running engine is discarded and a new, empty one takes its place | **Replaced** by the fields found in this body, with no roles | **Stops**, until `load` and `index` finish |
+| `load` | **Replaced.** It clears the dataset and loads its body; a second `load` does not append | Kept | Not searchable until `index` finishes |
+| `replace` | Replaced, atomically | Carried over; new fields arrive unconfigured (`added`) | **Keeps serving** the old data until the swap |
+| `POST documents` | **Added to.** A key that already exists is refused, and the whole batch with it | Kept; a field it does not know is refused | Keeps serving; searchable at once |
+| `PUT documents` | Replaces the documents named by key | Kept | Keeps serving |
+
+Two consequences that are easy to miss:
+
+- **Never call `analyze` on a live dataset** to pick up a schema change: it takes the dataset offline and resets every field role. `replace` is the call for that.
+- **`analyze` decides which fields exist.** Analyzing a sample is fine, but only if the sample contains every field. A field missing from the analyzed body is unknown afterwards, and every later insert or update carrying it is refused with `400 invalidArgument`.
+
+#### Choosing a path
+
+| Situation | Calls |
+|---|---|
+| First load | `analyze` → `PUT fields/configuration` → `load` → `index` → poll `status` |
+| First load too large for one request | `analyze` a sample containing every field → configure → `load` the first part → `index` → `POST documents` with the rest, in batches |
+| Full reload with no downtime (new export, new or changed fields) | `replace`, with the whole set in one request |
+| Keeping a live dataset in sync | `POST`, `PUT`, `PATCH` and `DELETE` on `documents` |
+
+**Request size.** The server takes bodies up to 2 GB, so `analyze`, `load` and `replace` normally take a whole catalogue in one request. A proxy in front of it can have a lower limit of its own and answer `413` before the server sees the body: see "Request Size Limits" in `cloudapi-setup.md`. Splitting a `replace` is not possible, since its point is to swap everything at once.
+
 ### Field Configuration
 
 Roles are written by one endpoint; the role lists are read-only.

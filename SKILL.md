@@ -185,6 +185,8 @@ Insert, update, partially update and delete documents while the engine stays Rea
 
 For a whole-catalogue reload use `POST …/replace` (Indx): the old index keeps serving until the new one is built, then swaps atomically — **zero downtime**, and field configuration, boost rules, synonyms and the key field carry over. Adding new fields needs this path; changing values does not.
 
+**Pitfall: `analyze` on a live dataset takes it offline.** It discards the running engine, replaces the field configuration with the fields of the new body (no roles), and search stops until a new `load` and `index` finish. To pick up a new export or a schema change, use `replace`. And `load` replaces rather than appends: to add documents in parts, use `POST …/documents`. What every loading call does to existing data is tabled under "Data Loading" in `references/http-api.md`.
+
 **Pitfall: insert and update refuse a field the configuration does not know.** A document carrying a field that is not in the field configuration gets `400 invalidArgument` naming it (`... field(s) not in the field configuration: 'color'`, nested fields by path such as `'meta.batch'`), and nothing is stored: one such document fails its whole batch, and an update leaves the document as it was. Typical cause: a new field added in the CMS while the sync job keeps inserting. Fix: a full `replace` with a complete export, then assign roles to the field reported under `added`. Missing non-key fields are fine (treated as null); a missing key field rejects the batch. Until October 2026 such a field was accepted and silently never indexed; code written for that now gets the 400 instead.
 
 ### Boost rules, campaigns and personalisation
