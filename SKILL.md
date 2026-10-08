@@ -329,6 +329,7 @@ with no records means an honest no-match. Full page, kept in step with this list
 | Symptom | First suspect |
 |---|---|
 | Every query returns nothing | A `fieldBoosts` key that is not a searchable field; `reason` names it. Or the dataset is not `Ready` |
+| A query of punctuation only (`...`, `..`) returns nothing | By design since IndxSearchLib 5.0.4: no words to search for, so it is refused with a `reason`. Treat it like an empty query |
 | An empty query returns nothing | `enableFacets` missing (and at least one facetable field needed) |
 | The MCP `search` finds nothing but the app's search box finds hits | Not a fault. The MCP tool sets `includePatternMatches=false`; over HTTP `coverageSetup` is usually absent and it defaults to **true**. Pass `broaden: true` to compare like with like |
 | A field is in results but never matches | It arrived through insert/update and was never indexed — only `replace` can add a field |
