@@ -235,4 +235,8 @@ the server logs.
 
 ## Request Size Limits
 
-The server accepts request bodies up to **2GB** — supports loading large JSON datasets via `POST …/load` and `POST …/load/text`.
+The server accepts request bodies up to **2GB** — supports loading large JSON datasets via `POST …/analyze`, `POST …/load` and `POST …/replace` (and their `/text` variants) in one request.
+
+- **Under IIS** (Windows App Service included) the shipped `web.config` raises IIS's own limit, which is otherwise about 28 MB and answers with IIS's `413` page. Server versions before Oct 2026 lack it.
+- **Behind a reverse proxy**, raise the proxy's limit as well, or it refuses large bodies first: nginx `client_max_body_size`, for example.
+- **`load` replaces, it does not append.** A second `load` clears the dataset and loads its own body. To add documents to a loaded dataset in parts, use `POST …/documents` in batches. For a full reload with no downtime, `replace` takes the whole set in one request.
