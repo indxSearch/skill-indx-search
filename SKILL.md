@@ -141,7 +141,7 @@ Saved **boost rules** are the exception: their `{field, value}` condition is acc
 
 ### Measuring performance
 
-Two different numbers, both true: **latency** (one search at a time — what a user waits; the Cloud UI's search preview reports the median and p95 of 100 sequential searches after warm-up) and **throughput** (searches per second with all cores busy — what a server sustains; the same tab reports it, and `SpectreJsonClient`'s "response time" is this figure divided per search). Compare like with like: a throughput-derived per-search time is typically 2–3× lower than latency on a multi-core machine.
+Two different numbers, both true: **latency** (one search at a time — what a user waits; the web console's search preview reports the median and p95 of 100 sequential searches after warm-up) and **throughput** (searches per second with all cores busy — what a server sustains; the same tab reports it, and `SpectreJsonClient`'s "response time" is this figure divided per search). Compare like with like: a throughput-derived per-search time is typically 2–3× lower than latency on a multi-core machine.
 
 ### Facets Tip
 
@@ -170,7 +170,7 @@ So on a "stemming" checklist: Indx does not ship a stemmer because the matcher a
 
 A per-dataset synonym list expands the query text before scoring — no re-indexing, effective on the next search. Entries are **multidirectional** (every term pulls in the others: *sofa ↔ couch*) or **one-way** (*hms → his majesty's ship*: searching the short form expands, searching the long form does not).
 
-- **Cloud UI**: the dataset's **Synonyms** tab — create, edit, filter, import/export JSON. Editors need no code access.
+- **web console**: the dataset's **Synonyms** tab — create, edit, filter, import/export JSON. Editors need no code access.
 - **HTTP**: `GET …/synonyms`, `PUT …/synonyms` (editor role).
 - **C#**: `engine.SynonymList` / `LoadSynonyms(path)` / `SaveSynonyms(path)`.
 
@@ -198,12 +198,12 @@ For a whole-catalogue reload use `POST …/replace` (Indx): the old index keeps 
 
 Boosts lift matching documents when a search runs with `enableBoost`. Two layers:
 
-- **Saved boost rules** (Cloud UI **Boost rules** tab; `GET/PUT/DELETE …/boosts`): a rule has a name, an `enabled` flag, conditions on filterable fields (`{field, value}` or `{field, min, max}`, joined with AND/OR), a strength (Low/Med/High) and an optional schedule (`activeFrom`, `activeUntil` dates) — campaign windows without code changes. Rules stack.
-- **Ad-hoc boosts per query** (`Query.Boosts` / `POST …/boosts/from-filter`): boost any filter, including an OR of many value filters. This is how **per-user personalisation** works — build a boost list from the user's history or segment and pass it with the query; hundreds of thousands of boosted documents cost little. See [references/csharp.md](references/csharp.md#boosts).
+- **Saved boost rules** (web console **Boost rules** tab; `GET/PUT/DELETE …/boosts`): a rule has a name, an `enabled` flag, conditions on filterable fields (`{field, value}` or `{field, min, max}`, joined with AND/OR), a strength (Low/Med/High) and an optional schedule (`activeFrom`, `activeUntil` dates) — campaign windows without code changes. Rules stack.
+- **Ad-hoc boosts per query** (`Query.Boosts` / `POST …/boosts/from-filter`): boost any filter, including an OR of many value filters. This is how **per-user personalisation** works — build a boost list from the user's history or segment and pass it with the query; applying a boost costs the same however many documents it covers; building a large per-user filter has its own cost. See [references/csharp.md](references/csharp.md#boosts).
 
-Scheduled rules that pass their end date stop applying but are kept; the Cloud UI flags them (chip, summary, tab badge) and notifies the team's editors. Import/export the rule list as JSON from the tab, the same array as `GET/PUT …/boosts`.
+Scheduled rules that pass their end date stop applying but are kept; the web console flags them (chip, summary, tab badge) and notifies the team's editors. Import/export the rule list as JSON from the tab, the same array as `GET/PUT …/boosts`.
 
-Popularity or sales-based ranking: store a `popularity` number on each document and boost on ranges of it (rule or ad-hoc). Indx does not collect behavioural signals itself. There is no negative boost ("bury") and no pinned positions — relevance stays the primary order; a High boost is the strongest lift.
+Popularity or sales-based ranking: store a `popularity` number on each document and boost on ranges of it (rule or ad-hoc). The Indx server records clicks and conversions (`events/select`, `events/convert`) and reports them per document and per user (`statistics/*`, including `statistics/subjects/{subject}` for one user's top documents), but it does not rank on them by itself: feed those counts into a `popularity` field or a per-user boost. There is no negative boost ("bury") and no pinned positions — relevance stays the primary order. A boost adds 257 × strength to a score that runs to 65 535, so even High (about 1 %) reorders results that score close together; it does not override relevance.
 
 ### Vector and hybrid search
 
@@ -359,18 +359,21 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 | Search-as-you-type / autocomplete | ✅ | full ranked search per keystroke; no separate suggest endpoint needed |
 | Stemming | 🟠 | prefix/compound matching built in; reverse inflection via one-way synonyms |
 | Compound-word decomposition | ✅ | no rules needed |
-| Synonyms, editor-editable | ✅ | Cloud UI tab, HTTP, C# |
+| Synonyms, editor-editable | ✅ | web console tab, HTTP, C# |
 | Facets with counts, per-type counts | ✅ | `Facetable`; zero-count values drop from the response — keep them greyed in the UI |
 | Value / range / boolean filters, AND/OR/NOT | ✅ | server-side filters; NOT is `!filter` in C# and `POST filters/not` over HTTP |
-| Sorting by number/date/string | ✅ | `Sortable` |
+| Sorting by number/date/string | ✅ | `Sortable`; on a text query relevance stays first and the sort breaks ties, so a strict "price, low to high" list is an empty search with filters |
+| Pagination | 🟠 | no offset parameter: ask for enough results (`maxNumberOfRecordsToReturn`, default 30) and page on the client |
+| Total hit count | 🟠 | no total on the result; facet counts give per-value totals, capped at `coverageDepth` (default 500, raise it per query or per dataset) |
 | Variant-level filtering | ✅ | array fields, any-element match |
 | Collapse variants to one card | 🟠 | model one document per work |
 | Real-time updates on publish | ✅ | dynamic operations, immediate |
 | Zero-downtime full reload | ✅ | `replace` |
 | Scheduled campaign boosts | ✅ | boost rules with `activeFrom`/`activeUntil` |
 | Per-user personalisation | ✅ | per-user boost lists |
-| Popularity ranking | 🟠 | boost on a popularity field you supply |
-| Bury / pin | ❌ | boosts lift only |
+| Popularity ranking | 🟠 | boost on a popularity field you supply, for example conversion counts from Statistics; events are recorded but not ranked on automatically |
+| Bury / pin | ❌ | boosts lift only, and gently: High adds about 1 % of the score range |
+| Query redirects ("returns" → a page) | ❌ | handle in your front-end |
 | Semantic / vector / hybrid search | ✅ | bring your own embeddings |
 | Related items / more-like-this | 🟠 | vector search on the item's embedding |
 | Spell-check "did you mean" | ❌ | not needed: the corrected match is returned directly |
@@ -387,7 +390,7 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 
 - **No language configuration** — inflections, compounds and typos are handled by character-level matching, so there are no tokenizers, stemmers or stop-word lists to maintain per language; synonyms cover domain vocabulary
 - **Built-in typo tolerance** — pattern matching handles misspellings automatically
-- **In-memory indexing** — all search indexes live in memory for speed; persistence is metadata-only
+- **In-memory indexing** — search indexes live in memory for speed. The Indx server keeps documents, configuration, synonyms, boost rules and statistics in SQLite and rebuilds the indexes on its own after a restart; the C# library persists nothing unless you do
 - **Linear coverage scaling** — coverage cost scales linearly with `coverageDepth`
 - **Schemaless JSON** — nested objects supported, fields discovered automatically via `Init`/`Analyze`
 - **Two-step retrieval** — search returns keys + scores; fetch full documents separately: `GetJsonDataOfKey` in the C# NuGet API, `POST …/documents/lookup` in the HTTP API
