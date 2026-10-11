@@ -343,7 +343,6 @@ Full with CoverageSetup (defaults shown):
     "truncate": true,
     "truncationScore": 65024,
     "minWordSize": 2,
-    "levenshteinMaxWordSize": 20,
     "truncateWordHitLimit": 1,
     "truncateWordHitTolerance": 0
   }

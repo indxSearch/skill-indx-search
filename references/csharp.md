@@ -414,7 +414,6 @@ var cov = new CoverageSetup
     TruncateWordHitLimit    = 1,  // default 1
     TruncateWordHitTolerance = 0, // default 0
     MinWordSize        = 2,       // default 2
-    LevenshteinMaxWordSize = 20,  // default 20
 };
 query.CoverageSetup = cov;
 ```
