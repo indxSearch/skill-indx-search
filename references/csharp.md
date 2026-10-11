@@ -258,7 +258,7 @@ Result properties:
   filter compares case-insensitively unless built with `isCaseSensitive: true`, so clicking either
   entry returns the documents of both spellings, and a facet count equals a filter count only for a
   case-sensitive filter
-- `TruncationIndex` — index where coverage truncation occurred (–1 if no truncation)
+- `TruncationIndex` — index of the last result that reached the coverage bar; –1 when none did (on a text query with coverage on, every result is then a pattern match) or when coverage did not run
 - `TruncationScore` — score value at the truncation point
 - `DidTimeOut` — `true` when the search could not be **served**, rather than served and found nothing.
   Two causes: it exceeded the timeout, or the engine was not `Ready` (loading, indexing, hibernated).
