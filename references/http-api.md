@@ -86,7 +86,7 @@ A `409 invalidState` is returned when an operation is valid but the dataset's `s
 ```json
 {
   "status": 409,
-  "detail": "Search cannot run on dataset 'products' because it is currently Indexing. Indexing is in progress — retry once the dataset reaches Ready.",
+  "detail": "The dataset is being indexed. Try again in a moment.",
   "code": "invalidState",
   "currentState": "Indexing",
   "allowedStates": ["Ready"],
