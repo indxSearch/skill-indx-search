@@ -315,7 +315,7 @@ Filter yearFilter  = engine.CreateRangeFilter("year", 1980, 2025, out _)!;
 Filter genreFilter = engine.CreateValueFilter("genre", "Documentary", out _)!;
 
 var boosts = new List<Boost>();
-boosts.Add(engine.CreateBoost(yearFilter & genreFilter, BoostStrength.Med));  // BoostStrength: Low, Med, High
+boosts.Add(engine.CreateBoost(yearFilter & genreFilter, BoostStrength.Med, out _)!);  // BoostStrength: Low, Med, High
 
 query.Boosts = boostArray;
 query.EnableBoost = true;
@@ -332,7 +332,7 @@ foreach (long itemId in userFrequentItemIds)
     frequentPurchases = frequentPurchases is null ? f : frequentPurchases | f;
 }
 if (frequentPurchases is not null)
-    boosts.Add(engine.CreateBoost(frequentPurchases, BoostStrength.Med));
+    boosts.Add(engine.CreateBoost(frequentPurchases, BoostStrength.Med, out _)!);
 ```
 
 ## Synonyms
