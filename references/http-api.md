@@ -417,7 +417,10 @@ Use `POST .../documents/lookup` with the array of `documentKey` values to retrie
 }
 
 // BoostProxy — boost results matching a filter
-// boostStrength: 1 (Low), 2 (Med), 3 (High)
+// boostStrength: 1 (Low), 2 (Med), 3 (High); any other number is 400 invalidArgument.
+// The strengths of one search's boosts may sum to 255 at most (85 at High): past it the search
+// is refused, 200 with no records and `reason` set. Each point costs every unboosted hit 1/255
+// of the score range, so many boosts flatten the order of the hits they do not lift.
 { "boostStrength": 2, "filterProxy": { "hashString": "<filter-hash>" } }
 
 // UpdateFieldProxy — partial field update
