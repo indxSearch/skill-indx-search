@@ -10,7 +10,7 @@ All endpoints require a **Bearer token** — an API key from the console (Accoun
 
 | Level | Can call | Use it for |
 |---|---|---|
-| **Search only** | `search`, `search/vector`, `search/hybrid`, `documents/lookup`, `filters/value`, `filters/range`, `filters/combine`, `filters/not`, `boosts/from-filter`, `fields/facetable`, `fields/filterable`, `fields/sortable`, `fields/searchable`, `GET fields/configuration`, `status`, and `PUT` on an existing dataset | Websites and apps — the key is visible in the browser, and this is all it can do |
+| **Search only** | `search`, `search/vector`, `search/hybrid`, `documents/lookup`, `filters/value`, `filters/range`, `filters/in`, `filters/position`, `filters/expression`, `filters/combine`, `filters/not`, `boosts/from-filter`, `fields/facetable`, `fields/filterable`, `fields/sortable`, `fields/searchable`, `GET fields/configuration`, `status`, and `PUT` on an existing dataset | Websites and apps — the key is visible in the browser, and this is all it can do |
 | **Read only** | Every read: adds `export`, `fields/configuration`, `synonyms`, `boosts`, counts, dataset lists | Exports, reporting, agents, back-ups — keep it on a server |
 | **Full access** | Everything your team role allows, including loading, changing and deleting data | Your own servers and pipelines |
 
@@ -63,11 +63,11 @@ Every error is an [RFC 9457 ProblemDetails](https://www.rfc-editor.org/rfc/rfc94
 | `400` | `loadFailed` | The JSON payload could not be loaded/analyzed (parse error, key-field violation) | Fix the data; the dataset's previous documents are untouched on `replace` |
 | `400` | `operationFailed` | A server-side step failed cleanly (index build, shadow build, wake-up) | Read `detail`; retrying may work after fixing the cause |
 | `400` | `unknownFilter` | A referenced filter `hashString` could not be resolved | Re-create the filter and retry with the new token — never retry without the filter |
+| `400` | `invalidFilterExpression` | A filter expression makes no filter | Read `errors` (`kind`, `message`, `start`, `length`, `suggestion`) and fix the expression — never retry without it |
 
-A `hashString` is **opaque**: obtain it from `filters/value|range|combine|not`, pass it back, and do
-not parse or construct it. It is durable — it survives cache eviction and a restart — so it can
-be held for the life of a dataset's field configuration. There is no NOT endpoint; exclude a
-value by filtering on the complementary values instead.
+A `hashString` is **opaque**: obtain it from `filters/value|range|in|position|expression|combine|not`,
+pass it back, and do not parse or construct it. It is durable — it survives cache eviction and a
+restart — so it can be held for the life of a dataset's field configuration.
 | `401` | — | Missing/expired/invalid token (body-less) | Refresh the bearer token |
 | `401` | `invalidCredentials` / `userNotFound` | Login failed | Fix the credentials |
 | `403` | `insufficientRole` | You are a member, but your team role is too low | Get a higher role (Editor/Admin) |
@@ -191,7 +191,10 @@ Insert, update, and delete without rebuilding the index. The dataset stays ready
 |--------|-----------|------|-------------|
 | POST | `filters/value` | `ValueFilterProxy` | Create equality filter on a **non-numeric** field → `FilterProxy`. On a numeric field: `400` naming `filters/range` instead |
 | POST | `filters/range` | `RangeFilterProxy` | Create range filter on a **numeric** field → `FilterProxy`. Equal limits = exact match. On a text field: `400` (a number stored as a JSON string is text) |
-| POST | `filters/combine` | `CombinedFilterProxy` | Combine with AND/OR → `FilterProxy` |
+| POST | `filters/in` | `InFilterProxy` | One of a set of values (`{fieldName, values, isCaseSensitive}`) → `FilterProxy` |
+| POST | `filters/position` | `PositionFilterProxy` | Within `withinMeter` of `{latitude, longitude}` → `FilterProxy` |
+| POST | `filters/expression` | `FilterExpressionProxy` | `{expression, parameters?}` → `{hashString, canonical}`; errors → `400 invalidFilterExpression` |
+| POST | `filters/combine` | `CombinedFilterProxy` | Combine two or more with AND/OR → `FilterProxy` |
 | POST | `filters/not` | `FilterProxy` | Negate: every document the filter does not match → `FilterProxy` |
 | POST | `boosts/from-filter` | `BoostProxy` | Create boost rule → `BoostProxy` |
 | POST | `filters/load` | — | Pre-load all registered filters into memory → `204` |
@@ -307,11 +310,19 @@ Full (with defaults shown):
   "sortAscending": false,
   "timeOutLimitMilliseconds": 1000,
   "filter": null,
+  "filterExpression": null,
+  "filterParameters": null,
   "boosts": null,
   "coverageSetup": null,
   "fieldBoosts": {}
 }
 ```
+
+- `filterExpression` — e.g. `"brand IN [\"nike\", \"puma\"] AND (price < 500 OR NOT category = \"outlet\")"`:
+  `= != < <= > >=`, `IN [..]`, `BETWEEN a AND b`, `within(field, lat, lon, meters)`, `AND OR NOT`
+  and parentheses, text in double quotes with JSON's escapes (a JSON-serialized string drops in as it is), `MATCHCASE` for case. ANDed with `filter`;
+  `filterParameters` gives the token for each `$name` placeholder. Also on `search/vector` and
+  `search/hybrid`. Errors → `400 invalidFilterExpression`.
 
 - `coverageDepth` (default **500**) — how many pattern-match candidates coverage confirms. Hits past
   the depth are never evaluated, so a broad query reports a total landing exactly on the depth: **a
@@ -322,11 +333,11 @@ Full (with defaults shown):
 
 `sortBy` — field name as a **string** (e.g. `"price"`).
 
-`fieldBoosts` — per-query multipliers on each field's configured `weight` (BM25F mode only):
+`fieldBoosts` — per-query multipliers on each field's configured `weight`:
 ```json
 { "fieldBoosts": { "title": 2.0, "description": 0.5 } }
 ```
-Every key must be a **searchable** field. A key that is not (unknown, or made non-searchable since) empties the whole search: `200`, no records, and a `reason` naming the field. A boost multiplies the weight — `weight: 3.0` × boost `2.0` = 6×; omitted fields keep their weight. Ignored when `bM25k1` differs between searchable fields (per-field scoring).
+Every key must be a **searchable** field. A key that is not (unknown, or made non-searchable since) empties the whole search: `200`, no records, and a `reason` naming the field. A boost multiplies the weight — `weight: 3.0` × boost `2.0` = 6×; omitted fields keep their weight. Every dataset on the server scores in BM25F mode with one k1, so `fieldBoosts` always apply; a changed `bM25k1` in `PUT fields/configuration` is refused.
 
 Full with CoverageSetup (defaults shown):
 ```json
@@ -398,15 +409,17 @@ Use `POST .../documents/lookup` with the array of `documentKey` values to retrie
 // FilterProxy — handle returned by filter creation endpoints
 { "hashString": "<filter-hash>" }
 
-// CombinedFilterProxy — AND/OR two existing filters
+// CombinedFilterProxy — AND/OR two or more existing filters into one
 {
-  "a": { "hashString": "<filter-a-hash>" },
-  "b": { "hashString": "<filter-b-hash>" },
+  "filters": [ { "hashString": "<filter-a-hash>" }, { "hashString": "<filter-b-hash>" } ],
   "useAndOperation": true
 }
 
 // BoostProxy — boost results matching a filter
-// boostStrength: 1 (Low), 2 (Med), 3 (High)
+// boostStrength: 1 (Low), 2 (Med), 3 (High); any other number is 400 invalidArgument.
+// The strengths of one search's boosts may sum to 255 at most (85 at High): past it the search
+// is refused, 200 with no records and `reason` set. Each point costs every unboosted hit 1/255
+// of the score range, so many boosts flatten the order of the hits they do not lift.
 { "boostStrength": 2, "filterProxy": { "hashString": "<filter-hash>" } }
 
 // UpdateFieldProxy — partial field update
@@ -513,7 +526,7 @@ curl -X POST "$BASE/filters/range" \
 curl -X POST "$BASE/filters/combine" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"a":{"hashString":"abc123"},"b":{"hashString":"def456"},"useAndOperation":true}'
+  -d '{"filters":[{"hashString":"abc123"},{"hashString":"def456"}],"useAndOperation":true}'
 # → {"hashString":"combined789..."}
 
 # 3. Search with filter
