@@ -399,10 +399,9 @@ Use `POST .../documents/lookup` with the array of `documentKey` values to retrie
 // FilterProxy — handle returned by filter creation endpoints
 { "hashString": "<filter-hash>" }
 
-// CombinedFilterProxy — AND/OR two existing filters
+// CombinedFilterProxy — AND/OR two or more existing filters into one
 {
-  "a": { "hashString": "<filter-a-hash>" },
-  "b": { "hashString": "<filter-b-hash>" },
+  "filters": [ { "hashString": "<filter-a-hash>" }, { "hashString": "<filter-b-hash>" } ],
   "useAndOperation": true
 }
 
@@ -514,7 +513,7 @@ curl -X POST "$BASE/filters/range" \
 curl -X POST "$BASE/filters/combine" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"a":{"hashString":"abc123"},"b":{"hashString":"def456"},"useAndOperation":true}'
+  -d '{"filters":[{"hashString":"abc123"},{"hashString":"def456"}],"useAndOperation":true}'
 # → {"hashString":"combined789..."}
 
 # 3. Search with filter
