@@ -320,7 +320,7 @@ Full (with defaults shown):
 
 - `filterExpression` — e.g. `"brand IN [\"nike\", \"puma\"] AND (price < 500 OR NOT category = \"outlet\")"`:
   `= != < <= > >=`, `IN [..]`, `BETWEEN a AND b`, `within(field, lat, lon, meters)`, `AND OR NOT`
-  and parentheses, text in double quotes, `MATCHCASE` for case. ANDed with `filter`;
+  and parentheses, text in double quotes with JSON's escapes (a JSON-serialized string drops in as it is), `MATCHCASE` for case. ANDed with `filter`;
   `filterParameters` gives the token for each `$name` placeholder. Also on `search/vector` and
   `search/hybrid`. Errors → `400 invalidFilterExpression`.
 
