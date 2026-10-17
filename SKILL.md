@@ -110,7 +110,7 @@ Note: Weights affect pattern recognition directly. A short text pattern in a lon
 
 - A boost **multiplies** the field's configured `weight`, it does not replace it — `weight: 3.0` with a boost of `3.0` counts 9×. Leave a field out to keep its weight.
 - **Every key must be a searchable field.** A key that is not — unknown, or a field that was made non-searchable later — empties the whole search: HTTP answers `200` with no records and a `reason` naming the field, C# an empty `Result` with `Reason` set. Read `reason` before rendering "no matches". When searches that sent `fieldBoosts` start returning nothing, compare the keys with `GET fields/configuration` before anything else, and remove a field from boosts when you remove `searchable` from it.
-- Boosts apply only in **BM25F mode**: every searchable field has the same `bM25k1` (the default). With differing `bM25k1` the fields are scored separately and boosts are ignored (an invalid key still empties the search).
+- Boosts always apply: every dataset on the server scores in **BM25F mode** with one k1, and a changed `bM25k1` in `PUT fields/configuration` is refused.
 
 ### Filters Must Be Server-Side
 
