@@ -165,9 +165,11 @@ var engine = new SearchEngine(logPrefix, loggerFactory, ConfigurationParameters.
 ```
 
 `ConfigurationParameters.Default` is the production configuration and is what config 400 was.
-Vary it with `ConfigurationParameters.Default.With(...)` rather than hand-copying; three
-`IndexerSetup` presets ship (`Dense`, `Default`, `SingleWord`). The numbered profiles and the
-lookup that resolved them are gone, so there is no number to pass and none to get wrong.
+Vary it with `ConfigurationParameters.Default.With(...)` rather than hand-copying. The numbered
+profiles and the lookup that resolved them are gone, so there is no number to pass and none to get
+wrong. How a field's text is indexed is set on the field, after `Init`: `Field.IndexSizes`
+(default `[3]`; `[2, 3]` for short values such as codes and tags), `NumberOfStartCharacters`
+(default 2) and `NumberOfStopCharacters` (default 0), the same for array fields as for any other.
 
 `new SearchEngine(licenseFileName)` is unchanged and still the shortest way in.
 
