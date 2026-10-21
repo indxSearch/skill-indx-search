@@ -1,6 +1,6 @@
 ---
 name: indx-search
-description: Indx Search integration skill for AI coding agents. Use when building or evaluating search with Indx — a high-performance, typo-tolerant search engine that matches at the character-pattern level instead of relying on tokenizers or per-language stemmers. Covers C# NuGet (IndxSearchLib) and HTTP API (Indx) integration, a built-in MCP server, field configuration and weighting, search-as-you-type, filters and facets, boost rules (incl. scheduled campaigns and per-user personalisation), synonyms, vector and hybrid search, real-time document updates, zero-downtime reindexing, server-side (SSR) usage, and search UX patterns.
+description: Indx Search integration skill for AI coding agents. Use when building or evaluating search with Indx — a high-performance, typo-tolerant search engine that matches at the character-pattern level instead of relying on tokenizers or per-language stemmers. Covers C# NuGet (IndxSearchLib) and HTTP API (Indx) integration, a built-in MCP server, field configuration and weighting, search-as-you-type, filters and facets, boost rules (incl. scheduled campaigns and per-user personalisation), synonyms, vector and hybrid search, Search or ask (questions answered from your own records, in the same search field), real-time document updates, zero-downtime reindexing, server-side (SSR) usage, and search UX patterns.
 ---
 
 # Indx Search — Agent Skill
@@ -214,6 +214,17 @@ Mark a field `Embeddable`, load vectors with the documents, and use:
 
 Indx **stores and searches** vectors; it does not generate them — bring embeddings from your own model. Vectors of any length are accepted: Indx brings each to unit length, so scores are cosine similarity. Insert, update and delete work on datasets with vector fields, and the server keeps a sleeping dataset's vector graph on disk so it wakes without rebuilding it. Filters apply to both. Details: [references/http-api.md](references/http-api.md#vector--hybrid-models).
 
+### Search or ask
+
+Indx Server can let the search field answer questions as well. On each typing pause a judge scores what is typed (a lookup, a question, or on a catalogue a description of what to list) and the page offers to ask; when the visitor asks, an answer model writes the answer from the dataset's records only, with citations. Name lookups stay plain searches.
+
+- **Fits** records written to explain (`kind: documentation`) or records of facts (`kind: catalogue`, where a description becomes filters). Not datasets of identifiers.
+- **Three switches:** a model key on the instance, "Search or ask" shown on the dataset (a team admin), and `enabled` in its settings (an editor). Typed text then goes to the model providers: the site's privacy notice must say so.
+- **Settings** worth setting: `siteDescription`, `knowledge` (markdown facts no record holds, which answers may state), `filterNotes` and the Ask phrases (the dataset's own names for its records, such as "the movie") on a catalogue. Make the fields questions are about Filterable and Facetable.
+- **Front end:** with intrface, `useSearchOrAsk()` plus `onAsk`/`searchOrAsk` on `SearchInput` and an `AskPanel`; it stays quiet where the feature is off. Over HTTP: `intent` on a pause, `ask` as server-sent events. A Search key covers all of it.
+
+Setup, every setting, the API and the pitfalls: [references/search-or-ask.md](references/search-or-ask.md).
+
 ---
 
 ## Data Format
@@ -375,6 +386,7 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 | Bury / pin | ❌ | boosts lift only, and gently: High adds about 1 % of the score range |
 | Query redirects ("returns" → a page) | ❌ | handle in your front-end |
 | Semantic / vector / hybrid search | ✅ | bring your own embeddings |
+| Answers to questions in the search field | ✅ | Indx server: Search or ask, answers written from the dataset's records with citations; needs a model key. See [references/search-or-ask.md](references/search-or-ask.md) |
 | Related items / more-like-this | 🟠 | vector search on the item's embedding |
 | Spell-check "did you mean" | ❌ | not needed: the corrected match is returned directly |
 | Search analytics (null results, popular queries) | ✅ | Indx server: top queries, searches without an exact match, fuzzy finds, click-through, top documents, per search surface (`?source=`); a Statistics tab in the console. See [references/http-api.md](references/http-api.md#statistics-and-events). The C# library has a search counter only |
