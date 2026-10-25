@@ -117,6 +117,19 @@ Note: Weights affect pattern recognition directly. A short text pattern in a lon
 - **Every key must be a searchable field.** A key that is not — unknown, or a field that was made non-searchable later — empties the whole search: HTTP answers `200` with no records and a `reason` naming the field, C# an empty `Result` with `Reason` set. Read `reason` before rendering "no matches". When searches that sent `fieldBoosts` start returning nothing, compare the keys with `GET fields/configuration` before anything else, and remove a field from boosts when you remove `searchable` from it.
 - Boosts apply only in **BM25F mode**: every searchable field has the same `bM25k1` (the default). With differing `bM25k1` the fields are scored separately and boosts are ignored (an invalid key still empties the search).
 
+### Category hierarchies
+
+A catalogue's hierarchy needs no configuration beyond field roles: the Indx server's console draws
+it on the dataset's **Categories** tab, every category with its product count, from the data as it
+is. Two shapes are read. A **path in one field**, the Google feed way (`"product_type":
+"Furniture > Chairs > Office chairs"`, separator detected, an array of paths for a product in
+several categories), or **a level per field** sharing a prefix (`category.department`,
+`category.section`, `category.type`). Mark the field, or every field of the group, **Facetable**;
+**Filterable** too and the tab lists a category's products and drafts a boost rule on it. For a
+storefront's own menu the same histogram is an empty search with `enableFacets: true`. A field
+whose values only sometimes carry a separator (`"Gold/black"`) is not a hierarchy; six in ten
+values must.
+
 ### Filters Must Be Server-Side
 
 Never filter results client-side after a search. The search only returns a limited number of results (`maxNumberOfRecordsToReturn`), so client-side filtering on that subset will miss documents. Always create filters server-side (`CreateValueFilter` / `CreateRangeFilter` / `CombineFilters` in C#; `POST filters/value` / `filters/range` / `filters/combine` over HTTP) and pass the filter in the query (`query.Filter` in C#, `QueryProxy.filter` in HTTP) so the server applies the filter during search.
@@ -389,7 +402,8 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 | Answers to questions in the search field | ✅ | Indx server: Search or ask, answers written from the dataset's records with citations; needs a model key. See [references/search-or-ask.md](references/search-or-ask.md) |
 | Related items / more-like-this | 🟠 | vector search on the item's embedding |
 | Spell-check "did you mean" | ❌ | not needed: the corrected match is returned directly |
-| Search analytics (null results, popular queries) | ✅ | Indx server: top queries, searches without an exact match, fuzzy finds, click-through, top documents, per search surface (`?source=`); a Statistics tab in the console. See [references/http-api.md](references/http-api.md#statistics-and-events). The C# library has a search counter only |
+| Category tree / hierarchy browser | ✅ | Indx server console: the Categories tab draws the catalogue's hierarchy from a path field or level fields, with counts and a step to boost a category; see Category hierarchies |
+| Search analytics (null results, popular queries) | ✅ | Indx server: top queries, searches without an exact match, fuzzy finds, click-through, top documents, when people search and in which languages (`?locale=`), per search surface (`?source=`); a Statistics tab in the console. See [references/http-api.md](references/http-api.md#statistics-and-events). The C# library has a search counter only |
 | Click and conversion events | ✅ | Indx server: `events/select` and `events/convert`, sent by your front-end with the search's `Indx-Query-Id`. Indx sets no cookies and sends no telemetry; you choose what to send, `subject` is optional, and one subject can be erased |
 | A/B testing of relevance | 🟠 | `FieldBoosts` per query, or a second engine via `CreateInMemoryClone` |
 | Client timeout | ✅ | `TimeOutLimitMilliseconds` + `DidTimeOut`; abort the HTTP request for hard cancel |
