@@ -173,11 +173,13 @@ When implementing search-as-you-type with a large dataset, consider only fetchin
 Indx has no per-language tokenizer, stemmer or stop-word list, and does not need one to work in Norwegian, English or mixed-language data. What replaces them:
 
 - **Typos and spelling variants** — pattern matching with one-edit tolerance (`Coverage.CoverFuzzyWords`).
-- **Inflections and prefixes** — a query word that is a prefix of a document word matches (`CoverPrefixSuffix`): *run* finds *running*, *bok* finds *bokhandel*. The reverse direction (query *running*, document *run*) is covered by pattern matching but scores lower under Coverage; add a one-way synonym (*running → run*) when that direction matters for a term.
+- **Inflections and prefixes** — a query word that is a prefix of a document word matches (`CoverPrefixSuffix`): *run* finds *running*, *bok* finds *bokhandel*. The reverse direction (query *running*, document *run*) is covered by pattern matching and scores a little lower under Coverage. Neither needs a synonym.
 - **Compound words (sammensatte ord)** — *spesialpedagogikk* matches *spesial pedagogikk* and vice versa without rules (`CoverJoinedWords`); mark title-like fields `HighResolution` for the sharpest compound matching. Decomposition and recomposition both work; no dictionary is involved.
 - **Domain vocabulary** — synonyms, editable by editors without code (next section).
 
-So on a "stemming" checklist: Indx does not ship a stemmer because the matcher already handles the common cases; the remaining case (long inflected query, short stored form) is a synonym entry.
+So on a "stemming" checklist: Indx does not ship a stemmer because the matcher handles inflection by beginnings and endings. The one case left is an irregular form that shares neither with its base (*bok* and *bøker*, *mouse* and *mice*), and only there is a synonym entry the answer.
+
+**Never propose synonyms for typos, spelling variants or translation.** The matcher finds misspellings by itself, and a synonym list in two languages is not a translation: it lengthens every search, and visitors searching in another language are better served by records in that language or by Search or ask.
 
 ### Synonyms
 
@@ -381,7 +383,7 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 | Field weighting, per-query field boosts | ✅ | `Weight`, `FieldBoosts` |
 | Typo tolerance | ✅ | built in, no config |
 | Search-as-you-type / autocomplete | ✅ | full ranked search per keystroke; no separate suggest endpoint needed |
-| Stemming | 🟠 | prefix/compound matching built in; reverse inflection via one-way synonyms |
+| Stemming | 🟠 | prefix, suffix and compound matching built in; irregular forms (*mouse*/*mice*) via synonyms |
 | Compound-word decomposition | ✅ | no rules needed |
 | Synonyms, editor-editable | ✅ | web console tab, HTTP, C# |
 | Facets with counts, per-type counts | ✅ | `Facetable`; zero-count values drop from the response — keep them greyed in the UI |

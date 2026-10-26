@@ -240,7 +240,7 @@ Synonyms expand queries at search time (matching an entry appends its terms to t
 {
   "name": "medical-terms",
   "entries": [
-    { "direction": 0, "terms": ["geriatri", "geriatrisk", "geriatriske"] },
+    { "direction": 0, "terms": ["legemiddel", "medisin"] },
     { "direction": 1, "source": "hms", "terms": ["helse, miljø og sikkerhet"] }
   ]
 }

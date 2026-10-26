@@ -351,7 +351,7 @@ engine.SynonymList = new SynonymList
     Entries =
     [
         // Multidirectional: all terms equivalent — matching any of them pulls in the group.
-        new SynonymEntry { Direction = SynonymDirection.Multidirectional, Terms = ["geriatri", "geriatrisk", "geriatriske"] },
+        new SynonymEntry { Direction = SynonymDirection.Multidirectional, Terms = ["legemiddel", "medisin"] },
         // OneWay: only Source expands, into Terms (acronyms) — matching a term does NOT pull in Source.
         new SynonymEntry { Direction = SynonymDirection.OneWay, Source = "hms", Terms = ["helse, miljø og sikkerhet"] },
     ]
@@ -362,7 +362,7 @@ engine.LoadSynonyms("synonyms.json");   // load and apply a saved list
 engine.SynonymList = null;              // search without synonyms again
 ```
 
-- Multi-word terms are matched as whole phrases, and matching splits on the engine's own delimiters, so punctuation (`geriatri,`) still triggers an entry.
+- Multi-word terms are matched as whole phrases, and matching splits on the engine's own delimiters, so punctuation (`medisin,`) still triggers an entry.
 - Expansion lengthens the query text, which lowers Coverage scores proportionally — measure the net effect before shipping a large list.
 - After mutating `Entries` in place, call `SynonymList.Invalidate()`; assigning a new list or a new `Entries` collection handles it automatically.
 
