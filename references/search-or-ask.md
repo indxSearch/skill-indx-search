@@ -106,7 +106,7 @@ Limits: text 1 to 300 characters, question 1 to 1,000. `429` with `Retry-After` 
 
 ## Costs and statistics
 
-A judgement is about $0.00005; a `best` answer about $0.035 on a film catalogue, a `fast` one about $0.0015. The answers are the bill. `GET …/statistics/search-or-ask?days=30` (Read key) returns offers, questions, how they ended (unanswered first), sources opened, questions asked again in other words within five minutes (`askedAgain`, and the pairs in `rephrased`; needs `?session=`), cost and calls against the budget; the console's Statistics tab shows the same.
+A judgement is about $0.00005; a `best` answer about $0.035 on a film catalogue, a `fast` one about $0.0015. The answers are the bill. `GET …/statistics/search-or-ask?days=30` (Read key) returns offers, questions, how they ended (unanswered first), sources opened, questions asked again in other words within five minutes (`askedAgain`, and the pairs in `rephrased`; needs `?session=`), the needs those bundle into (`needs`: wordings, how visits ended, records landed on), cost and calls against the budget; the console's Statistics tab shows the same.
 
 ## Pitfalls
 
