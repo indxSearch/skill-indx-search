@@ -19,7 +19,7 @@ Do **not** propose it for a dataset of identifiers or codes. Low question volume
 
 ## Turn it on: three switches
 
-1. **Instance:** a model key. Console *Admin > Settings > Experimental* (show Search or ask, the keys), or `Indx:SearchOrAsk:ApiKey`. One OpenRouter key serves the judge and the answers; Anthropic or any OpenAI-compatible endpoint can serve the answers, with a judge key beside it. Without a key the routes answer `409 searchOrAskUnavailable`.
+1. **Instance:** model keys, one per provider. Console *Admin > Settings > Experimental* (show Search or ask, the keys), or `Indx:SearchOrAsk:Keys:OpenRouter` / `Keys:OpenAi` / `Keys:Anthropic` / `Keys:TypeSafe` (the older `Indx:SearchOrAsk:ApiKey` still works). The judge and the answers each name a provider and use its key. One OpenRouter key serves both; so does one OpenAI key (OpenAI answers plus the Decisions API as judge, with EU data residency and an Ultrafast answer speed). Anthropic or any OpenAI-compatible endpoint can serve the answers. Without a key the routes answer `409 searchOrAskUnavailable`.
 2. **Dataset shown:** a team admin, the dataset's Options tab, or `PUT …/search-or-ask/shown { "shown": true }`. Until then every route answers `404`.
 3. **Dataset enabled:** an editor, `"enabled": true` in the settings (`PUT …/search-or-ask`, Full key). Off: `409 searchOrAskDisabled`.
 
