@@ -122,7 +122,7 @@ foreach (var field in engine.GetFieldConfiguration())
 }
 ```
 
-`FieldProxy` properties: `FieldName`, `FieldType` ("String"/"Number"/"Boolean"), `IsArray`, `Searchable`, `Filterable`, `Facetable`, `Sortable`, `WordIndexing`, `Embeddable`, `Weight`, `BM25b`, `BM25k1`, `PreloadFilters`.
+`FieldProxy` properties: `FieldName`, `FieldType` ("String"/"Number"/"Boolean"), `IsArray`, `Searchable`, `Filterable`, `Facetable`, `Sortable`, `Embeddable`, `Weight`, `BM25b`, `BM25k1`, `PreloadFilters`, `PatternMatching` (on or off) with `IndexSizes`, `NumberOfStartCharacters` and `NumberOfStopCharacters` (the setup's, when on).
 
 ## Field Configuration
 
@@ -157,7 +157,7 @@ var proposed = new[] { new FieldProxy { FieldName = "category", Facetable = true
 
 if (engine.DocumentFields.RequiresReload(proposed))
 {
-    // Searchable, WordIndexing, Embeddable, PreloadFilters.
+    // Searchable, Embeddable, PreloadFilters.
     // Only a Load consumes these. Applying one in place returns the engine to Created,
     // and searches then fail with a reason rather than answering as if the field were empty.
 }

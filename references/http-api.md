@@ -144,7 +144,7 @@ Roles are written by one endpoint; the role lists are read-only.
 | PUT | `fields/configuration` | `FieldProxy[]` | Set field roles, weights and BM25 parameters; only the properties sent are changed → `204` applied, or `202` + status when a rebuild was started |
 | GET | `fields/configuration` | — | Get current field configuration → `FieldProxy[]` |
 | GET | `fields` | — | List all discovered field names → `string[]` |
-| GET | `fields/searchable` / `fields/filterable` / `fields/facetable` / `fields/sortable` / `fields/word-indexing` / `fields/embeddable` | — | List field names by role → `string[]` |
+| GET | `fields/searchable` / `fields/filterable` / `fields/facetable` / `fields/sortable` / `fields/embeddable` | — | List field names by role → `string[]` |
 
 `PUT fields/configuration` checks the whole request first; a refused one is `400` and changes nothing. Before the dataset is indexed it always answers `204`. On a `Ready` dataset a change that needs the index rebuilt answers `202`: the rebuild runs in the background on a shadow engine and the old configuration serves until the swap. Poll `GET status` until `shadowBuildInProgress` is `false`, then check `shadowBuildError` (`null` = the new configuration is in use). During a rebuild another configuration change, `POST index` or a bulk document change gets `409 shadowBusy`.
 
@@ -285,7 +285,7 @@ dataset *name*, matching how document keys are yours. Deleting the dataset does 
 ```
 
 All fields are optional (null = unchanged). Available properties:
-`fieldName`, `fieldType`, `isArray`, `searchable`, `filterable`, `facetable`, `sortable`, `wordIndexing`, `embeddable`, `weight` (float), `bM25b` (float, 0–1), `bM25k1` (float, 1–2), `preloadFilters`.
+`fieldName`, `fieldType`, `isArray`, `searchable`, `filterable`, `facetable`, `sortable`, `embeddable`, `weight` (float), `bM25b` (float, 0–1), `bM25k1` (float, 1–2), `preloadFilters`, `patternMatching` (matched inside words; off, by whole words only), `indexSizes`, `numberOfStartCharacters`, `numberOfStopCharacters` (with pattern matching on).
 
 `fieldType` and `isArray` are read-only — the server fills them in on `GET fields/configuration` and ignores them on `PUT fields/configuration`.
 

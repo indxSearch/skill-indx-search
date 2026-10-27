@@ -94,10 +94,11 @@ Fields must be explicitly marked with their roles before indexing:
 | **Filterable** | Available for filter operations | The field's **type** decides the kind: value filters on non-numeric fields, range filters on numeric ones |
 | **Facetable** | Used for aggregations | Returns value counts (histograms) |
 | **Sortable** | Enables result ordering | Works on numbers and strings. See sorting behavior below |
-| **WordIndexing** | Indexes entire words | Useful on fields with many repeating words. See below |
 | **Embeddable** | Field carries a vector for semantic search | See [Vector and hybrid search](#vector-and-hybrid-search) |
 
-**WordIndexing** — indexes entire words in a field. Useful for large datasets where many documents share the same words (e.g. a `category` field across thousands of products). Complements Searchable and must be combined with it on the same field. Only affects single-word queries.
+**PatternMatching** — how a searchable field is matched inside its words. Off, the default since 5.1, the field is matched by whole words only: exactly, within the edits Coverage allows, and by prefix and affix - right for codes, identifiers and tags. On (`PatternMatchingSetup.Default`, or a setup with its own `IndexSizes` and start and stop characters), a query also finds the field by any part of a word - right for titles, names typed in part and descriptions. Every searchable field has its words in the word lookup either way.
+- C# API: `field.PatternMatching = PatternMatchingSetup.Default;`
+- HTTP API: `{ "fieldName": "title", "searchable": true, "patternMatching": true }`
 
 **Weight** — Searchable fields have a `float` weight (default 1.25) to control importance. Higher = more influence on BM25 scoring. Typical range 0.5–3.0.
 - C# API: `new FieldProxy { FieldName = "title", Searchable = true, Weight = 2.0f }`
