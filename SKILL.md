@@ -145,6 +145,7 @@ When implementing search-as-you-type with a large dataset, consider only fetchin
 ### Coverage Tuning
 
 - `EnableCoverage` (default: `true`) — Toggle the coverage refinement step.
+- `EnableCoverageReport` (default: `false`) — With Coverage on, `Result.CoverageReport` says for each returned record how each query word was met (`Whole`, `Prefix`, `Suffix`, `Joined`, `RunTogether`, `OneEdit`, `TwoEdits`, `NotFound`) and in which field, and `MatchesByField` counts them per field. Use it to see why a record ranks where it does, and whether a field's `CoverageStrictness` lets through more edits than its data needs.
 - `CoverageDepth` (default: `500`) — Number of top-K pattern-match candidates to evaluate. Higher = better recall, more latency. Auto-increases if `MaxNumberOfRecordsToReturn > CoverageDepth`. Set to `engine.Status.DocumentCount` for full-dataset coverage.
   - **The default surfaces as a wrong count, not a short page.** Hits past the depth are never confirmed, so a broad query reports a total that lands exactly on the depth. **A count equal to `coverageDepth` is the cap talking, not the data.** Cost is linear in depth, so full-dataset depth is effectively free on small and mid-sized datasets; benchmark before raising it into the millions.
   - **Use one depth per surface.** Result list and facet counts at different depths describe different universes, and the numbers beside each other disagree.
