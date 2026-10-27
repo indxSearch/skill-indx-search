@@ -95,7 +95,6 @@ Fields must be explicitly marked with their roles before indexing:
 | **Facetable** | Used for aggregations | Returns value counts (histograms) |
 | **Sortable** | Enables result ordering | Works on numbers and strings. See sorting behavior below |
 | **WordIndexing** | Indexes entire words | Useful on fields with many repeating words. See below |
-| **HighResolution** | Also indexes the text with delimiters removed | Sharper matching of compound and run-together words (`"hvis feks"` also indexes `"hvisfeks"`). Use on key fields such as titles |
 | **Embeddable** | Field carries a vector for semantic search | See [Vector and hybrid search](#vector-and-hybrid-search) |
 
 **WordIndexing** — indexes entire words in a field. Useful for large datasets where many documents share the same words (e.g. a `category` field across thousands of products). Complements Searchable and must be combined with it on the same field. Only affects single-word queries.
@@ -156,7 +155,7 @@ Indx has no per-language tokenizer, stemmer or stop-word list, and does not need
 
 - **Typos and spelling variants** — pattern matching with one-edit tolerance (`Coverage.CoverFuzzyWords`).
 - **Inflections and prefixes** — a query word that is a prefix of a document word matches (`CoverPrefixSuffix`): *run* finds *running*, *bok* finds *bokhandel*. The reverse direction (query *running*, document *run*) is covered by pattern matching but scores lower under Coverage; add a one-way synonym (*running → run*) when that direction matters for a term.
-- **Compound words (sammensatte ord)** — *spesialpedagogikk* matches *spesial pedagogikk* and vice versa without rules (`CoverJoinedWords`); mark title-like fields `HighResolution` for the sharpest compound matching. Decomposition and recomposition both work; no dictionary is involved.
+- **Compound words (sammensatte ord)** — *spesialpedagogikk* matches *spesial pedagogikk* and vice versa without rules (`CoverJoinedWords`). Decomposition and recomposition both work; no dictionary is involved.
 - **Domain vocabulary** — synonyms, editable by editors without code (next section).
 
 So on a "stemming" checklist: Indx does not ship a stemmer because the matcher already handles the common cases; the remaining case (long inflected query, short stored form) is a synonym entry.

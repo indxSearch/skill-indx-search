@@ -285,7 +285,7 @@ dataset *name*, matching how document keys are yours. Deleting the dataset does 
 ```
 
 All fields are optional (null = unchanged). Available properties:
-`fieldName`, `fieldType`, `isArray`, `searchable`, `filterable`, `facetable`, `sortable`, `wordIndexing`, `embeddable`, `weight` (float), `bM25b` (float, 0–1), `bM25k1` (float, 1–2), `preloadFilters`, `highResolution` (also index/query N-grams with delimiters removed, so a run-together or split query matches across them).
+`fieldName`, `fieldType`, `isArray`, `searchable`, `filterable`, `facetable`, `sortable`, `wordIndexing`, `embeddable`, `weight` (float), `bM25b` (float, 0–1), `bM25k1` (float, 1–2), `preloadFilters`.
 
 `fieldType` and `isArray` are read-only — the server fills them in on `GET fields/configuration` and ignores them on `PUT fields/configuration`.
 
