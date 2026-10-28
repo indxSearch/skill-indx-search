@@ -209,7 +209,7 @@ For a whole-catalogue reload use `POST …/replace` (Indx): the old index keeps 
 
 **Pitfall: insert and update refuse a field the configuration does not know.** A document carrying a field that is not in the field configuration gets `400 invalidArgument` naming it (`... field(s) not in the field configuration: 'color'`, nested fields by path such as `'meta.batch'`), and nothing is stored: one such document fails its whole batch, and an update leaves the document as it was. Typical cause: a new field added in the CMS while the sync job keeps inserting. Fix: a full `replace` with a complete export, then assign roles to the field reported under `added`. Missing non-key fields are fine (treated as null); a missing key field rejects the batch. Until October 2026 such a field was accepted and silently never indexed; code written for that now gets the 400 instead.
 
-**Webhooks (Indx server): sync from a CMS or shop without your own sync code.** A team admin makes a webhook for a dataset (console *Webhooks*, or `POST …/webhooks { name, idField, versionField? }`); the sender posts its changes to the webhook's `url`, signed with its `secret`, and they are applied as inserts, updates and deletes within seconds. Sanity and Contentful are ready-made sources that need no code; Optimizely CMS 12/13 has the `Indx.Connector.Optimizely` add-on. A full set can be sent once to fill an empty dataset. A **brake** holds a call that would delete or empty more than a tenth of the dataset in an hour until an admin applies or discards it (`…/webhooks/{id}/held`). Prefer a webhook to a hand-written sync job when the source can send one. Human docs: [docs.indx.co/howto/webhooks](https://docs.indx.co/howto/webhooks).
+**Webhooks (Indx server): sync from a CMS or shop without your own sync code.** A team admin makes a webhook for a dataset (console *Webhooks*, or `POST …/webhooks { name, idField, versionField? }`); the sender posts its changes to the webhook's `url`, signed with its `secret`, and they are applied as inserts, updates and deletes within seconds. Sanity and Contentful are ready-made sources that need no code; any other system can send its changes with its own code. A full set can be sent once to fill an empty dataset. A **brake** holds a call that would delete or empty more than a tenth of the dataset in an hour until an admin applies or discards it (`…/webhooks/{id}/held`). Prefer a webhook to a hand-written sync job when the source can send one. Human docs: [docs.indx.co/howto/webhooks](https://docs.indx.co/howto/webhooks).
 
 ### Boost rules, campaigns and personalisation
 
@@ -396,7 +396,7 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 | Total hit count | 🟠 | no total on the result; facet counts give per-value totals, capped at `coverageDepth` (default 500, raise it per query or per dataset) |
 | Variant-level filtering | ✅ | array fields, any-element match |
 | Collapse variants to one card | 🟠 | model one document per work |
-| Real-time updates on publish | ✅ | dynamic operations, immediate; or an Indx server webhook (Sanity and Contentful with no code, Optimizely through an add-on) |
+| Real-time updates on publish | ✅ | dynamic operations, immediate; or an Indx server webhook (Sanity and Contentful with no code) |
 | Zero-downtime full reload | ✅ | `replace` |
 | Scheduled campaign boosts | ✅ | boost rules with `activeFrom`/`activeUntil` |
 | Per-user personalisation | ✅ | per-user boost lists |
