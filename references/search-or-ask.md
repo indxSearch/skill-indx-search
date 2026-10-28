@@ -39,7 +39,9 @@ Do **not** propose it for a dataset of identifiers or codes. Low question volume
 | `titleField`, `sectionFields`, `snippetFields` | automatic | What the judge reads of a result. Snippets are prose, never identifiers or URLs |
 | `filterNotes` | none | Catalogue: what a value means, one per line (`barneskole: grades 1 to 7`) |
 | `knowledge` | none | Markdown facts no record holds (scope, what a rating means, VAT, delivery). Answers may state it as "the site says"; never read by the judge; 8,000 characters max. A Search key reads the settings **without** it |
-| `answers` | `best` | `best` (stronger model; on a catalogue an agent that searches, sorts and filters) or `fast` (about 1/20 of the cost) |
+| `answers` | `best` | `best` (the instance's stronger model) or `fast` (about 1/20 of the cost) |
+| `answerModel` | none | Another model the instance offers (`effective.answerModels`), in place of the one `answers` names; any other is refused with `400` |
+| `searches` | follows `answers` | Catalogue only: `several` (an agent that searches, sorts and filters) or `one` (one search, a summary). Unset: `best` several, `fast` one |
 | `answerInstructions` | none | Voice and house rules; cannot loosen grounding. 1,500 characters max |
 | `answerLanguage` | visitor's | One language for every answer |
 | `askPhrases` | English | `{ leadIns, frames, links, articles }`, see below |
@@ -52,7 +54,7 @@ Do **not** propose it for a dataset of identifiers or codes. Low question volume
 | `filtersWhileTyping` | `off` | Catalogue: `off`, `facets` (instant), `model` (about 1.5 s) |
 | `dailyCallBudget` | 5000 | Calls per UTC day; `0` stops all calls |
 
-`GET` also returns `effective` (what it runs with after defaults, the Ask phrases in effect) and `available` (the instance has a key).
+`GET` also returns `effective` (what it runs with after defaults, the Ask phrases in effect, `answerModel`, `searches`, and the offered `answerModels`) and `available` (the instance has a key).
 
 ### Mode
 
