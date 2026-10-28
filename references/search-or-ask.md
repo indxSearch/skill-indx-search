@@ -43,8 +43,10 @@ Do **not** propose it for a dataset of identifiers or codes. Low question volume
 | `answerInstructions` | none | Voice and house rules; cannot loosen grounding. 1,500 characters max |
 | `answerLanguage` | visitor's | One language for every answer |
 | `askPhrases` | English | `{ leadIns, frames, links, articles }`, see below |
-| `refocusWhileTyping`, `inviteOnAskPhrase` | `true`, `true` | |
-| `thresholds` | 0.65 / 0.45 / 0.40 / 0.30 | `strong`, `strongHide`, `invite`, `inviteHide` |
+| `mode` | `soft` | How forward the offer is, see below |
+| `dailyProactiveAnswers` | 500 | Answers `proactive` starts without a click per UTC day; past it the mode reports `inviting` until midnight |
+| `refocusWhileTyping`, `inviteOnAskPhrase` | `true`, `true` | The second shows the invitation the moment an Ask phrase matches, before the judge; strict ignores it |
+| `thresholds` | 0.65 / 0.45 / 0.40 / 0.30 | `strong`, `strongHide`, `invite`, `inviteHide`; also `hint` (null: 0.25 catalogue, 0.31 documentation) and `finished` (0.5) |
 | `cutWhileAsking`, `cutShareOfTop`, `cutTopFloor` | `true`, 0.5, 0.2 | Keep only strong matches while the full offer is up |
 | `strictCoverageWhileAsking` | `true` | Whole words only on the page's searches while asking |
 | `filtersWhileTyping` | `off` | Catalogue: `off`, `facets` (instant), `model` (about 1.5 s) |
@@ -52,11 +54,23 @@ Do **not** propose it for a dataset of identifiers or codes. Low question volume
 
 `GET` also returns `effective` (what it runs with after defaults, the Ask phrases in effect) and `available` (the instance has a key).
 
+### Mode
+
+| `mode` | What the visitor sees |
+|---|---|
+| `strict` | Only the full offer, once the judge is sure. Where a wrong offer costs more than a missed one |
+| `soft` (default) | The quiet invitation early, the full offer once sure |
+| `open` | An Ask button whenever something is typed; Enter asks whatever the judge says |
+| `inviting` | Open, plus "For a quick answer, type a bit more" from `thresholds.hint` up. Teaches visitors the field answers |
+| `proactive` | Inviting, and the answer starts on its own once the offer is strong, `finished` passes its threshold and the visitor has been still a second |
+
+Recommend `soft` unless the user asks otherwise. `proactive` spends an answer per finished question nobody clicked for: suggest it for documentation with a budget to match, not for a catalogue. A page can choose its own mode (`useSearchOrAsk({ mode })`), such as `strict` on a checkout page; `proactive` applies only where the dataset is set to it.
+
 ### Ask phrases
 
 While a question is typed, the list searches what it is about: "help me find the movie about the green ogre" searches `green ogre`. Groups, matched in order from the start: lead-ins ("help me find"), frames, i.e. what is asked for ("the movie"), links ("about", "with"), articles. Nothing is taken unless the start has a question's shape and a word of 3+ letters is left. A frame also comes off the end ("show me green ogre movie" → `green ogre`) when two words stand before it.
 
-For a catalogue, **add the records' own names as frames** ("the movie", "a film", "movie", "the product") and lead-ins in the site's language. With all four lists empty the English defaults apply; once any list has a phrase, the four are the dataset's own (an empty list then takes nothing of its kind).
+For a catalogue, **add the records' own names as frames** ("the movie", "a film", "movie", "the product") and lead-ins in the site's language. A phrase belongs to one group. In the console they are edited under *Edit Ask phrases*, with *Try it*. With all four lists empty the English defaults apply; once any list has a phrase, the four are the dataset's own (an empty list then takes nothing of its kind).
 
 ### Catalogue fields
 
@@ -64,7 +78,7 @@ The judge's filters and the agent work from **Filterable** fields. A text field 
 
 ---
 
-## Front end with intrface (`@indxsearch/intrface` 3.13+)
+## Front end with intrface (`@indxsearch/intrface` 3.13+; the modes and `QuickAnswer` 3.15+)
 
 ```tsx
 import { SearchProvider, SearchInput, SearchResults, AskPanel, useSearchOrAsk, useFilterSuggestion } from '@indxsearch/intrface';
@@ -73,10 +87,12 @@ function Search() {
   const sor = useSearchOrAsk();                         // settings, judge on pause, Ask phrases on the searches
   const suggestion = useFilterSuggestion({ auto: sor }); // a catalogue's filters on the list
   const [question, setQuestion] = useState<string | null>(null);
+  const [proactive, setProactive] = useState(false);
   return (
     <>
-      <SearchInput onAsk={setQuestion} searchOrAsk={sor} />
-      {question && <AskPanel question={question} followUps onFilters={suggestion.apply} />}
+      <SearchInput searchOrAsk={sor}
+        onAsk={(text, how) => { setQuestion(text); setProactive(!!how?.proactive); }} />
+      {question && <AskPanel question={question} proactive={proactive} followUps onFilters={suggestion.apply} />}
       <SearchResults fields={['title', 'description']} searchOrAsk={sor} />
     </>
   );
@@ -86,6 +102,8 @@ function Search() {
 
 - Where Search or ask is off or unavailable, `useSearchOrAsk` stays quiet and the page is an ordinary search: safe to ship before it is enabled.
 - `AskPanel fill` takes its container's height (a panel beside the results); `SearchInput askOffer="below"` puts the offer under the field.
+- `SearchInput` follows the dataset's mode; in `proactive` it calls `onAsk(text, { proactive: true })` on its own. Pass `proactive` on to `AskPanel` so the statistics count those answers apart.
+- `QuickAnswer` draws the offer as a row above the results (the hint, the full offer, or proactive's "Thinking"). Give `SearchInput` `askOffer="none"` beside it, so the offer shows once.
 - **Use a Search key in the browser.** Never a Read or Full key.
 
 ---
@@ -94,9 +112,9 @@ function Search() {
 
 All under `/api/teams/{team}/datasets/{ds}/search-or-ask`, Search key:
 
-- `POST /intent { text }` on a **typing pause**, not every keystroke: `{ p, answerable, criteria, offer: none|invite|strong, searchText, reason?, … }`. `p` 0 with a `reason` when the judge is slow or failing; it never fails the call. Keep an offer up until `p` falls below the `…Hide` threshold.
+- `POST /intent { text }` on a **typing pause**, not every keystroke: `{ p, answerable, criteria, finished, offer: none|invite|strong, mode, searchText, reason?, … }`. Follow the returned `mode`, not the one you read at load: `proactive` comes back `inviting` once the day's proactive answers are spent. `p` 0 with a `reason` when the judge is slow or failing; it never fails the call. Keep an offer up until `p` falls below the `…Hide` threshold.
 - **Search `searchText`**, not the typed text, when refocus is on, and send the typed text as `?typed=` on that search so the statistics count the typing once.
-- `POST /ask { question, history? }` → server-sent events `status`, `sources` (`[{ n, documentKey, title }]`), `filters` (catalogue), `text` (`{ delta }`, markdown citing `[n]`), `done`, or `error` (`nothingFound`, `upstreamBusy`, `failed`). Header `Indx-Ask-Id`: send it as the `queryId` of a select when a cited source is opened. `history`: up to three `{ question, answer }` turns.
+- `POST /ask { question, history? }` → server-sent events `status`, `sources` (`[{ n, documentKey, title }]`), `filters` (catalogue), `text` (`{ delta }`, markdown citing `[n]`), `done`, or `error` (`nothingFound`, `upstreamBusy`, `failed`). Header `Indx-Ask-Id`: send it as the `queryId` of a select when a cited source is opened. `history`: up to three `{ question, answer }` turns. Send `"proactive": true` when the page starts the answer itself; outside the `proactive` mode that answers `429`.
 - `POST /filters { text }` (catalogue, when `criteria` is strong): `{ filters: [{ field, value | min, max }], text, sort? }`.
 - Pass `?session=` (one id per page load), `?source=` and `?queryId=` as on searches.
 
@@ -106,7 +124,7 @@ Limits: text 1 to 300 characters, question 1 to 1,000. `429` with `Retry-After` 
 
 ## Costs and statistics
 
-A judgement is about $0.00005; a `best` answer about $0.035 on a film catalogue, a `fast` one about $0.0015. The answers are the bill. `GET …/statistics/search-or-ask?days=30` (Read key) returns offers, questions, how they ended (unanswered first), sources opened, questions asked again in other words within five minutes (`askedAgain`, and the pairs in `rephrased`; needs `?session=`), the needs those bundle into (`needs`: wordings, how visits ended, records landed on), cost and calls against the budget; the console's Statistics tab shows the same.
+A judgement is about $0.00005; a `best` answer about $0.035 on a film catalogue, a `fast` one about $0.0015. The answers are the bill. `GET …/statistics/search-or-ask?days=30` (Read key) returns offers, questions, how they ended (unanswered first), sources opened, questions asked again in other words within five minutes (`askedAgain`, and the pairs in `rephrased`; needs `?session=`), the needs those bundle into (`needs`: wordings, how visits ended, records landed on), answers proactive wrote on its own (`proactiveAnswers`, apart from `asks`), cost and calls against the budget; the console's Statistics tab shows the same.
 
 ## Pitfalls
 
