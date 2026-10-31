@@ -247,11 +247,10 @@ if (result.Facets != null)
 
 Result properties:
 - `Records` — `ScoreEntry16[]` with `DocumentKey` (long) and `Score` (ushort, 0–65535). Coverage-confirmed matches always score higher than pure pattern matches.
-- `Facets` — `Dictionary<string, KeyValuePair<string, int>[]>` (field → value/count pairs). A facet
-  keys on the value as stored, so a corpus that spells a value both ways lists it twice. A value
-  filter compares case-insensitively unless built with `isCaseSensitive: true`, so clicking either
-  entry returns the documents of both spellings, and a facet count equals a filter count only for a
-  case-sensitive filter
+- `Facets` — `Dictionary<string, KeyValuePair<string, int>[]>` (field → value/count pairs), counted
+  over every record the search counted, not only those returned. A value is counted
+  case-insensitively, as a value filter compares, and shown as first written, so a corpus that spells
+  it both ways lists it once, and a default value filter on it returns the facet's count
 - `TruncationIndex` — index where coverage truncation occurred (–1 if no truncation)
 - `TruncationScore` — score value at the truncation point
 - `DidTimeOut` — `true` when the search could not be **served**, rather than served and found nothing.
