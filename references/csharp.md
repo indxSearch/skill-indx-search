@@ -206,7 +206,7 @@ engine.LoadFieldConfiguration("fieldconfig.json");
 ```csharp
 var query = new Query("search text", maxResults)
 {
-    EnableCoverage = true,                  // default: true
+    Mode = SearchMode.Coverage,             // default: Coverage (or Bm25f, EditDistance)
     CoverageDepth = 500,                    // default: 500
     CoverageSetup = coverageSetup,          // CoverageSetup object, default: null
     EnableFacets = false,                   // default: false
@@ -427,7 +427,12 @@ query.CoverageSetup = new CoverageSetup { IncludePatternMatches = false };
 
 **Pattern matching only (disable coverage):**
 ```csharp
-query.EnableCoverage = false;
+query.Mode = SearchMode.Bm25f;
+```
+
+**Words within an edit, exact first, with a count, no Coverage:**
+```csharp
+query.Mode = SearchMode.EditDistance;
 ```
 
 **Keep all results, don't truncate:**
