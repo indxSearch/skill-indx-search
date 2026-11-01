@@ -408,10 +408,6 @@ var cov = new CoverageSetup
     CoverJoinedWords   = true,    // default true — handle split/joined words
     CoverPrefixSuffix  = true,    // default true — detect partial words
     IncludePatternMatches = true, // default true — set false for exact-only results
-    Truncate           = true,    // default true — cut results at coverage boundary
-    TruncationScore    = 65024,   // default 65024
-    TruncateWordHitLimit    = 1,  // default 1
-    TruncateWordHitTolerance = 0, // default 0
     MinWordSize        = 2,       // default 2
 };
 query.CoverageSetup = cov;
@@ -434,9 +430,9 @@ query.Mode = SearchMode.Bm25f;
 query.Mode = SearchMode.EditDistance;
 ```
 
-**Keep all results, don't truncate:**
+**Every rung up to the tolerance, not only the first with hits:**
 ```csharp
-query.CoverageSetup = new CoverageSetup { Truncate = false };
+query.Rungs = Rungs.All;
 ```
 
 **Deep coverage (all documents):**
