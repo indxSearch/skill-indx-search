@@ -322,7 +322,7 @@ Full (with defaults shown):
 Any part may be left out or `null`: its defaults apply. Enums are written **by name**, in requests
 and responses alike (a number in a request is still accepted): `mode` `Bm25f`, `EditDistance`,
 `Coverage` (default); `match.tolerance` `Exact`, `OneEdit`, `TwoEdits` (default, the fields' own
-strictness); `match.rungs` `Fewest`, `All`; `candidates.indexTerms` `Both`, `Words`, `Patterns`. The pre-6.0 fields (`enableCoverage`,
+`tolerance`); `match.rungs` `Fewest`, `All`; `candidates.indexTerms` `Both`, `Words`, `Patterns`. The pre-6.0 fields (`enableCoverage`,
 `coverageDepth`, `coverageSetup`, `enableBoost`, `enableBury`, top-level `fieldBoosts`, `boosts`,
 `buries`) are no longer read.
 

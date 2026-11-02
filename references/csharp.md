@@ -412,7 +412,7 @@ or end of a longer one are always detected; the shortest word is `TokenizerSetup
 var query = new Query("search text", 20)
 {
     Match = {
-        Tolerance = Tolerance.TwoEdits,  // default — the fields' own strictness; Exact, OneEdit cap it
+        Tolerance = Tolerance.TwoEdits,  // default — the fields' own Field.Tolerance; Exact, OneEdit cap it
         OneEditFrom = 3, TwoEditsFrom = 6,
         JoinedWords = true,              // default — words written together or apart
     },
