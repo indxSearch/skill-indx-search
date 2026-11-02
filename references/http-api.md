@@ -215,13 +215,13 @@ Synonyms expand queries at search time (matching an entry appends its terms to t
 {
   "name": "medical-terms",
   "entries": [
-    { "direction": 0, "terms": ["geriatri", "geriatrisk", "geriatriske"] },
-    { "direction": 1, "source": "hms", "terms": ["helse, miljø og sikkerhet"] }
+    { "direction": "Multidirectional", "terms": ["geriatri", "geriatrisk", "geriatriske"] },
+    { "direction": "OneWay", "source": "hms", "terms": ["helse, miljø og sikkerhet"] }
   ]
 }
 ```
 
-`direction`: `0` = Multidirectional (all terms equivalent — any of them triggers the group), `1` = OneWay (only `source` expands, into `terms` — for acronyms). Multi-word terms match as whole phrases. Note that expansion lengthens the query text, which lowers Coverage scores proportionally.
+`direction`, by name (`0`/`1` still accepted): `Multidirectional` (all terms equivalent — any of them triggers the group), `OneWay` (only `source` expands, into `terms` — for acronyms). Multi-word terms match as whole phrases. Note that expansion lengthens the query text, which lowers Coverage scores proportionally.
 
 ### Statistics and Events
 
@@ -301,22 +301,30 @@ Full (with defaults shown):
 {
   "text": "search terms",
   "maxNumberOfRecordsToReturn": 30,
-  "enableCoverage": true,
-  "coverageDepth": 500,
+  "mode": "Coverage",
+  "match": { "tolerance": "TwoEdits", "rungs": "Fewest", "oneEditFrom": 3, "twoEditsFrom": 6, "cursorAt": null,
+             "typingPrefixFrom": 3, "typingPrefixOneEditFrom": 6, "joinedWords": true },
+  "candidates": { "candidatesPerRow": 4, "maxCandidates": null, "indexTerms": "Both", "fallback": true },
+  "ranking": { "share": 0.2, "typingShift": 0.5, "longFieldFrom": 0, "longFieldWeightFloor": 0.1,
+               "wholeQueryFloor": true, "fieldWeights": null, "fieldBoosts": null,
+               "boosts": null, "buries": null },
   "enableFacets": false,
-  "enableBoost": false,
   "removeDuplicates": true,
   "sortBy": null,
   "sortAscending": false,
   "timeOutLimitMilliseconds": 1000,
   "filter": null,
   "filterExpression": null,
-  "filterParameters": null,
-  "boosts": null,
-  "coverageSetup": null,
-  "fieldBoosts": {}
+  "filterParameters": null
 }
 ```
+
+Any part may be left out or `null`: its defaults apply. Enums are written **by name**, in requests
+and responses alike (a number in a request is still accepted): `mode` `Bm25f`, `EditDistance`,
+`Coverage` (default); `match.tolerance` `Exact`, `OneEdit`, `TwoEdits` (default, the fields' own
+strictness); `match.rungs` `Fewest`, `All`; `candidates.indexTerms` `Both`, `Words`, `Patterns`. The pre-6.0 fields (`enableCoverage`,
+`coverageDepth`, `coverageSetup`, `enableBoost`, `enableBury`, top-level `fieldBoosts`, `boosts`,
+`buries`) are no longer read.
 
 - `filterExpression` — e.g. `"brand IN [\"nike\", \"puma\"] AND (price < 500 OR NOT category = \"outlet\")"`:
   `= != < <= > >=`, `IN [..]`, `BETWEEN a AND b`, `within(field, lat, lon, meters)`, `AND OR NOT`
@@ -324,41 +332,26 @@ Full (with defaults shown):
   `filterParameters` gives the token for each `$name` placeholder. Also on `search/vector` and
   `search/hybrid`. Errors → `400 invalidFilterExpression`.
 
-- `coverageDepth` (default **500**) — how many pattern-match candidates coverage confirms. Hits past
-  the depth are never evaluated, so a broad query reports a total landing exactly on the depth: **a
-  count equal to `coverageDepth` is the cap, not the data.** Raise it to the document count on small
-  and mid-sized datasets (cost is linear in depth), and use one depth for the list and its facet counts.
+- `candidates` — every record holding the query's words on the first rung with hits (exactly, else
+  one edit, else two) is counted, `toleranceCounts` in the result, never capped. The best of them up
+  to the bound are ranked: the rows times `candidatesPerRow` (4), at most 5 000, or `maxCandidates`;
+  `overflow` says the bound was reached. `fallback: false` returns an empty list when nothing is
+  counted, instead of the most words then pattern matches (`isFallback`). Facet counts are counted
+  over the counted records, so they agree with `toleranceCounts`.
+- `ranking.boosts` / `ranking.buries` — the tokens from `boosts/from-filter` and
+  `buries/from-filter`; a list that is not empty is on. The dataset's saved boost and bury rules
+  apply to every search.
 - `enableFacets` — also required for an **empty** `text`. Empty text with `enableFacets: false` is
   refused: `200`, no records, `reason` set. The dataset also needs one facetable field.
 
 `sortBy` — field name as a **string** (e.g. `"price"`).
 
-`fieldBoosts` — per-query multipliers on each field's configured `weight`:
+`ranking.fieldBoosts` — per-query multipliers on each field's configured `weight`:
 ```json
-{ "fieldBoosts": { "title": 2.0, "description": 0.5 } }
+{ "ranking": { "fieldBoosts": { "title": 2.0, "description": 0.5 } } }
 ```
-Every key must be a **searchable** field. A key that is not (unknown, or made non-searchable since) empties the whole search: `200`, no records, and a `reason` naming the field. A boost multiplies the weight — `weight: 3.0` × boost `2.0` = 6×; omitted fields keep their weight. Every dataset on the server scores in BM25F mode with one k1, so `fieldBoosts` always apply; a changed `bM25k1` in `PUT fields/configuration` is refused.
+Every key must be a **searchable** field. A key that is not (unknown, or made non-searchable since) empties the whole search: `200`, no records, and a `reason` naming the field. A boost multiplies the weight — `weight: 3.0` × boost `2.0` = 6×; omitted fields keep their weight. Every dataset on the server scores in BM25F mode with one k1, so field boosts always apply; a changed `bM25k1` in `PUT fields/configuration` is refused.
 
-Full with CoverageSetup (defaults shown):
-```json
-{
-  "text": "search terms",
-  "maxNumberOfRecordsToReturn": 30,
-  "coverageSetup": {
-    "coverWholeQuery": true,
-    "coverWholeWords": true,
-    "coverFuzzyWords": true,
-    "coverJoinedWords": true,
-    "coverPrefixSuffix": true,
-    "includePatternMatches": true,
-    "truncate": true,
-    "truncationScore": 65024,
-    "minWordSize": 2,
-    "truncateWordHitLimit": 1,
-    "truncateWordHitTolerance": 0
-  }
-}
-```
 
 ### Result (Search Response)
 
@@ -374,8 +367,10 @@ Full with CoverageSetup (defaults shown):
       { "key": "accessories", "value": 5 }
     ]
   },
-  "truncationIndex": 15,
-  "truncationScore": 52000,
+  "toleranceCounts": { "exact": 37, "oneEdit": null, "twoEdits": null },
+  "countedTolerance": "Exact",
+  "overflow": false,
+  "isFallback": false,
   "didTimeOut": false
 }
 ```
@@ -385,7 +380,9 @@ Full with CoverageSetup (defaults shown):
 - `reason` — set when the engine **refused** the query instead of finding nothing: empty `text`
   without `enableFacets`, text over the 300-character limit, a dataset that is not ready. Records are
   empty either way, so check it alongside `didTimeOut` and never render a refusal as "no results".
-- `truncationIndex` — where coverage truncation occurred (–1 if none).
+- `toleranceCounts` — records holding every query word exactly, within one edit, within two (each
+  with those before it; `null` when not worked out). `countedTolerance` — the rung the list came from
+  (`Exact`, `OneEdit`, `TwoEdits`), `null` when nothing was counted. Absent in `Bm25f` mode. `overflow`, `isFallback` as above.
 - `didTimeOut` — the search could not be *served*, as opposed to serving and finding nothing: either it
   hit the timeout limit, or the engine was not `Ready`. Over HTTP the not-Ready case normally surfaces
   as `409` with the current state before it gets this far, so on this surface the flag almost always
@@ -416,11 +413,11 @@ Use `POST .../documents/lookup` with the array of `documentKey` values to retrie
 }
 
 // BoostProxy — boost results matching a filter
-// boostStrength: 1 (Low), 2 (Med), 3 (High); any other number is 400 invalidArgument.
+// boostStrength: "Low", "Med" or "High" (1, 2, 3 still accepted); any other value is 400 invalidArgument.
 // The strengths of one search's boosts may sum to 255 at most (85 at High): past it the search
 // is refused, 200 with no records and `reason` set. Each point costs every unboosted hit 1/255
 // of the score range, so many boosts flatten the order of the hits they do not lift.
-{ "boostStrength": 2, "filterProxy": { "hashString": "<filter-hash>" } }
+{ "boostStrength": "Med", "filterProxy": { "hashString": "<filter-hash>" } }
 
 // UpdateFieldProxy — partial field update
 { "fieldName": "price", "value": 49.99 }
@@ -443,7 +440,7 @@ Use `POST .../documents/lookup` with the array of `documentKey` values to retrie
 
 ```json
 {
-  "systemState": 4,
+  "systemState": "Ready",
   "documentCount": 5000,
   "searchCounter": 42,
   "secondsToIndex": 2,
@@ -454,7 +451,7 @@ Use `POST .../documents/lookup` with the array of `documentKey` values to retrie
 }
 ```
 
-`systemState`: `0`=Created, `1`=Loading, `2`=Loaded, `3`=Indexing, `4`=Ready, `255`=Error. There is no hibernated state: a hibernated dataset reports `0`=Created with `recordsOnDisk > 0` (the old `-1`=Hibernated is gone).
+`systemState`, by name: `Created`, `Loading`, `Loaded`, `Indexing`, `Ready`, `Error`. There is no hibernated state: a hibernated dataset reports `Created` with `recordsOnDisk > 0` (the old `-1`=Hibernated is gone).
 
 `GET status` returns `CloudSystemStatus`, which adds cloud-layer fields — most usefully `shadowBuildInProgress` (true while a background rebuild runs), `shadowBuildFinishedUtc` (when the last one ended) and `shadowBuildError` (why it failed, or `null`).
 
@@ -469,7 +466,7 @@ All steps below are under `/api/teams/{team}/datasets/{dataset}/`.
 4. PUT   fields/configuration      → configure all fields in one call (204)
 5. POST  load                      → load JSON data (204)
 6. POST  index                     → start indexing (202, SystemStatus body)
-7. GET   status                    → poll until systemState = 4 (Ready)
+7. GET   status                    → poll until systemState = "Ready"
 8. POST  search                    → returns records with documentKey + score
 9. POST  documents/lookup          → fetch full JSON by document keys
 ```
@@ -481,7 +478,7 @@ All steps below are under `/api/teams/{team}/datasets/{dataset}/`.
 {
   "text": "exact product name XYZ-123",
   "maxNumberOfRecordsToReturn": 10,
-  "coverageSetup": { "includePatternMatches": false }
+  "candidates": { "fallback": false }
 }
 ```
 
@@ -541,12 +538,12 @@ curl -X POST "$BASE/search" \
 curl -X POST "$BASE/boosts/from-filter" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"boostStrength":3,"filterProxy":{"hashString":"<filter-hash>"}}'
+  -d '{"boostStrength":"High","filterProxy":{"hashString":"<filter-hash>"}}'
 
 curl -X POST "$BASE/search" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"text":"headphones","maxNumberOfRecordsToReturn":20,"enableBoost":true,"boosts":[{"boostStrength":3,"filterProxy":{"hashString":"<filter-hash>"}}]}'
+  -d '{"text":"headphones","maxNumberOfRecordsToReturn":20,"ranking":{"boosts":[{"boostStrength":"High","filterProxy":{"hashString":"<filter-hash>"}}]}}'
 ```
 
 **Dynamic insert:**
@@ -629,7 +626,7 @@ let ready = false;
 while (!ready) {
   await new Promise(r => setTimeout(r, 200));
   const { data } = await client.get('status');
-  ready = data.systemState === 4;
+  ready = data.systemState === 'Ready';
 }
 
 // 6. Search

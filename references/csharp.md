@@ -207,21 +207,26 @@ engine.LoadFieldConfiguration("fieldconfig.json");
 var query = new Query("search text", maxResults)
 {
     Mode = SearchMode.Coverage,             // default: Coverage (or Bm25f, EditDistance)
-    CoverageDepth = 500,                    // default: 500
-    CoverageSetup = coverageSetup,          // CoverageSetup object, default: null
+    Match = { Tolerance = Tolerance.TwoEdits, Rungs = Rungs.Fewest },     // what counts as a hit
+    Candidates = { CandidatesPerRow = 4, MaxCandidates = null, Fallback = true }, // who comes in
+    Ranking = {                             // the order
+        Share = 0.2f,                       // Coverage's share of the blend
+        Boosts = boostArray,                // Boost[]; a list that is not empty is on
+        FieldBoosts = new Dictionary<string, float> { ["title"] = 2.0f }, // BM25F per-query boost
+    },
     EnableFacets = false,                   // default: false
-    EnableBoost = false,                    // default: false
     SortBy = engine.GetField("rating"),     // Field object, default: null
     SortAscending = false,                  // default: false
     RemoveDuplicates = true,                // default: true
     Filter = filter,                        // Filter object, default: null
-    Boosts = boostArray,                    // Boost[], default: null
-    FieldBoosts = new Dictionary<string, float> { ["title"] = 2.0f }, // BM25F per-query boost
     TimeOutLimitMilliseconds = 1000         // default: 1000, max: 10000
 };
 ```
 
-`FieldBoosts` — per-query multipliers on each field's `Weight` for the BM25F scoring path (`Weight = 3.0f` × boost `2.0f` = 6×; fields not listed default to 1.0, i.e. their `Weight`). Only has effect when `ScoringMode` is `BM25F` — every searchable field has the same `BM25k1`. **Every key must be a searchable field**: an unknown or non-searchable key makes `Search` return an empty `Result` with no `Reason`, indistinguishable from no matches; the message is on `engine.Status.ErrorMessage`.
+The three parts are never null. Until 6.0 they were `CoverageSetup`, `WordLookupSetup`,
+`CoverageDepth`, `EnableBoost`/`EnableBury` and members of the query itself.
+
+`Ranking.FieldBoosts` — per-query multipliers on each field's `Weight` for the BM25F scoring path (`Weight = 3.0f` × boost `2.0f` = 6×; fields not listed default to 1.0, i.e. their `Weight`). Only has effect when `ScoringMode` is `BM25F` — every searchable field has the same `BM25k1`. **Every key must be a searchable field**: an unknown or non-searchable key makes `Search` return an empty `Result` with no `Reason`, indistinguishable from no matches; the message is on `engine.Status.ErrorMessage`.
 
 ## Handling Results
 
@@ -251,8 +256,11 @@ Result properties:
   over every record the search counted, not only those returned. A value is counted
   case-insensitively, as a value filter compares, and shown as first written, so a corpus that spells
   it both ways lists it once, and a default value filter on it returns the facet's count
-- `TruncationIndex` — index where coverage truncation occurred (–1 if no truncation)
-- `TruncationScore` — score value at the truncation point
+- `ToleranceCounts` — how many documents hold every query word `Exact`ly, within `OneEdit`, within
+  `TwoEdits` (each with those before it; a rung not worked out is null). Null in `Bm25f` mode
+- `CountedTolerance` — the rung the list was taken from; null when nothing was counted
+- `Overflow` — the counted documents were more than the candidate bound; the best of them were ranked
+- `IsFallback` — no document held every word: the most words first, then pattern matches
 - `DidTimeOut` — `true` when the search could not be **served**, rather than served and found nothing.
   Two causes: it exceeded the timeout, or the engine was not `Ready` (loading, indexing, hibernated).
   Check it before showing "no results" — a dataset being reloaded would otherwise look like a dataset
@@ -316,8 +324,7 @@ Filter genreFilter = engine.CreateValueFilter("genre", "Documentary", out _)!;
 var boosts = new List<Boost>();
 boosts.Add(engine.CreateBoost(yearFilter & genreFilter, BoostStrength.Med, out _)!);  // BoostStrength: Low, Med, High
 
-query.Boosts = boostArray;
-query.EnableBoost = true;
+query.Ranking.Boosts = boosts.ToArray(); // a list that is not empty is on
 ```
 
 **Personalized boosting** — boost a user's own items by OR-ing per-key value filters into one filter, then boosting that filter:
@@ -397,27 +404,28 @@ A small `avgdl` drift accumulates over many incremental operations. A full `Inde
 
 ## Coverage Control
 
-Coverage re-evaluates the top-K pattern-match candidates for exact and near-exact token matches, promoting confirmed matches above pure pattern results.
+The search counts the documents holding every query word (exactly, else within one edit, else
+two) and Coverage ranks them, blended with pattern recognition. Whole words and a word as the start
+or end of a longer one are always detected; the shortest word is `TokenizerSetup.MinimumWordSize`.
 
 ```csharp
-var cov = new CoverageSetup
+var query = new Query("search text", 20)
 {
-    CoverWholeQuery    = true,    // default true — detect whole query as a string
-    CoverWholeWords    = true,    // default true — detect individual words
-    CoverFuzzyWords    = true,    // default true — edit-distance tolerance
-    CoverJoinedWords   = true,    // default true — handle split/joined words
-    CoverPrefixSuffix  = true,    // default true — detect partial words
-    IncludePatternMatches = true, // default true — set false for exact-only results
-    MinWordSize        = 2,       // default 2
+    Match = {
+        Tolerance = Tolerance.TwoEdits,  // default — the fields' own strictness; Exact, OneEdit cap it
+        OneEditFrom = 3, TwoEditsFrom = 6,
+        JoinedWords = true,              // default — words written together or apart
+    },
+    Candidates = { Fallback = true },    // default — false for exact-only results
+    Ranking = { Share = 0.2f, WholeQueryFloor = true },
 };
-query.CoverageSetup = cov;
 ```
 
 ## Common Patterns
 
 **Near-exact hits only:**
 ```csharp
-query.CoverageSetup = new CoverageSetup { IncludePatternMatches = false };
+query.Candidates.Fallback = false;
 ```
 
 **Pattern matching only (disable coverage):**
@@ -432,16 +440,15 @@ query.Mode = SearchMode.EditDistance;
 
 **Every rung up to the tolerance, not only the first with hits:**
 ```csharp
-query.Rungs = Rungs.All;
+query.Match.Rungs = Rungs.All;
 ```
 
-**Deep coverage (all documents):**
+**Rank more candidates:**
 ```csharp
-query.CoverageDepth = engine.Status.DocumentCount;
+query.Candidates.MaxCandidates = 5000;
 ```
-A broad query whose count lands exactly on `CoverageDepth` is reporting the cap, not the data — hits
-past the depth are never confirmed. Cost is linear in depth, so full-dataset depth is effectively free
-below a few hundred thousand documents.
+The count (`Result.ToleranceCounts`) is never capped; the bound decides how many of the counted
+documents are ranked (`Result.Overflow` when it was reached). Cost is linear in the candidates.
 
 **Empty search — browse mode with sorting and facets.** `EnableFacets` is what makes empty text
 legal: without it the search is refused, returning an empty `Result` with a `Reason`, which is not the

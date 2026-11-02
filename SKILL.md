@@ -53,7 +53,7 @@ Tools:
 
 - **`list_datasets`** — datasets the token can reach, with document counts and state.
 - **`describe_dataset(team, dataset)`** — configured fields with capabilities, plus **value hints** (distinct values for facetable fields, numeric ranges), an owner description, and a sample document. Call first so the agent filters with real values.
-- **`search(team, dataset, query, filters?, limit?, fields?, broaden?, facets?)`** — ranked hits with scores. Declarative AND filters (`{field, value}` or `{field, min, max}`). **Precise by default** (`includePatternMatches=false`) so an empty result is a trustworthy no-match; pass `broaden: true` for fuzzy recall.
+- **`search(team, dataset, query, filters?, limit?, fields?, broaden?, facets?)`** — ranked hits with scores. Declarative AND filters (`{field, value}` or `{field, min, max}`). **Precise by default** (`candidates.fallback=false`) so an empty result is a trustworthy no-match; pass `broaden: true` for fuzzy recall.
 - **`get_document(team, dataset, key)`** — full JSON for a key.
 - **`get_synonyms(team, dataset)`** — the dataset's synonym list (an empty `entries` array when it has none). Explains why a search matched more than its literal words (queries expand through the list before scoring).
 
@@ -106,10 +106,10 @@ Fields must be explicitly marked with their roles before indexing:
 
 Note: Weights affect pattern recognition directly. A short text pattern in a longer string will not necessarily rank higher than the same pattern in a shorter string, even if the longer field has higher weight.
 
-**Per-query field boosts** — adjust field importance for one search without reconfiguring: `query.FieldBoosts = { ["title"] = 2.0f }` in C#, `"fieldBoosts": { "title": 2.0 }` in the HTTP `search` body. Use this for "title matches first" ranking, or to A/B two weightings from the same index. Three rules:
+**Per-query field boosts** — adjust field importance for one search without reconfiguring: `query.Ranking.FieldBoosts = { ["title"] = 2.0f }` in C#, `"ranking": { "fieldBoosts": { "title": 2.0 } }` in the HTTP `search` body. Use this for "title matches first" ranking, or to A/B two weightings from the same index. Three rules:
 
 - A boost **multiplies** the field's configured `weight`, it does not replace it — `weight: 3.0` with a boost of `3.0` counts 9×. Leave a field out to keep its weight.
-- **Every key must be a searchable field.** A key that is not — unknown, or a field that was made non-searchable later — empties the whole search: HTTP answers `200` with no records and a `reason` naming the field, C# an empty `Result` with `Reason` set. Read `reason` before rendering "no matches". When searches that sent `fieldBoosts` start returning nothing, compare the keys with `GET fields/configuration` before anything else, and remove a field from boosts when you remove `searchable` from it.
+- **Every key must be a searchable field.** A key that is not — unknown, or a field that was made non-searchable later — empties the whole search: HTTP answers `200` with no records and a `reason` naming the field, C# an empty `Result` with `Reason` set. Read `reason` before rendering "no matches". When searches that sent field boosts start returning nothing, compare the keys with `GET fields/configuration` before anything else, and remove a field from boosts when you remove `searchable` from it.
 - Boosts always apply: every dataset on the server scores in **BM25F mode** with one k1, and a changed `bM25k1` in `PUT fields/configuration` is refused.
 
 ### Filters Must Be Server-Side
@@ -122,9 +122,9 @@ Saved **boost rules** are the exception: their `{field, value}` condition is acc
 
 ### Search Behavior Guidance
 
-- **Keep coverage enabled** (the default). This is the recommended setting for nearly all use cases — both human-facing and programmatic. Only disable coverage in edge cases where you search a single field and only care about top-K fuzzy matches (e.g. name lookup). With coverage disabled, truncation is unreliable and results degrade when searching across multiple fields (title + description + category, etc.).
-- **Agent/tool usage**: Enable coverage and set `IncludePatternMatches = false` (`coverageSetup.includePatternMatches` in HTTP). This returns only exact and near-exact matches (within ~1 typo), filtering out loose pattern hits.
-- **Empty search**: Supported with empty/null query text. Requires facets enabled and at least one facetable field. Returns all documents, ignores `CoverageDepth`. **Without `enableFacets` the empty query is refused, not empty**: `200`, no records, and `reason` set to `Search called with empty string and EnableFacets=false`. A browse page that omits the flag therefore renders an empty catalogue with no error — read `reason` before rendering.
+- **Keep coverage enabled** (the default). This is the recommended setting for nearly all use cases — both human-facing and programmatic. Only disable coverage in edge cases where you search a single field and only care about top-K fuzzy matches (e.g. name lookup). With coverage disabled nothing is counted, and results degrade when searching across multiple fields (title + description + category, etc.).
+- **Agent/tool usage**: Keep coverage on and set `Candidates.Fallback = false` (`candidates.fallback` in HTTP). This returns only documents holding every query word (exactly or within the tolerance's edits), filtering out loose pattern hits.
+- **Empty search**: Supported with empty/null query text. Requires facets enabled and at least one facetable field. Returns all documents, ignores the candidate bound. **Without `enableFacets` the empty query is refused, not empty**: `200`, no records, and `reason` set to `Search called with empty string and EnableFacets=false`. A browse page that omits the flag therefore renders an empty catalogue with no error — read `reason` before rendering.
 - **No debounce needed on search**: Indx is fast enough that debouncing search requests is unnecessary. Fire on every keystroke.
 
 ### Sorting Behavior
@@ -144,20 +144,21 @@ When implementing search-as-you-type with a large dataset, consider only fetchin
 
 ### Coverage Tuning
 
-- `Mode` in C# (`SearchMode.Coverage`, the default; `Bm25f`; `EditDistance`), `enableCoverage` over HTTP (`false` is `Bm25f`) — `Bm25f` is pattern recognition alone; `EditDistance` takes every document holding each query word exactly or within one or two edits, counted, exact matches first, without the cost of Coverage; `Coverage` orders the same documents with Coverage within each group.
+- `Mode` in C# (`SearchMode.Coverage`, the default; `Bm25f`; `EditDistance`), `mode` over HTTP (a number: 0 `Bm25f`, 1 `EditDistance`, 2 `Coverage`) — `Bm25f` is pattern recognition alone; `EditDistance` takes every document holding each query word exactly or within one or two edits, counted, exact matches first, without the cost of Coverage; `Coverage` orders the same documents with Coverage within each group.
 - `EnableCoverageReport` (default: `false`) — With Coverage on, `Result.CoverageReport` says for each returned record how each query word was met (`Whole`, `Prefix`, `Suffix`, `Joined`, `RunTogether`, `OneEdit`, `TwoEdits`, `NotFound`) and in which field, and `MatchesByField` counts them per field. Use it to see why a record ranks where it does, and whether a field's `CoverageStrictness` lets through more edits than its data needs.
-- `CoverageDepth` (default: `500`) — Number of top-K pattern-match candidates to evaluate. Higher = better recall, more latency. Auto-increases if `MaxNumberOfRecordsToReturn > CoverageDepth`. Set to `engine.Status.DocumentCount` for full-dataset coverage.
-  - **The default surfaces as a wrong count, not a short page.** Hits past the depth are never confirmed, so a broad query reports a total that lands exactly on the depth. **A count equal to `coverageDepth` is the cap talking, not the data.** Cost is linear in depth, so full-dataset depth is effectively free on small and mid-sized datasets; benchmark before raising it into the millions.
-  - **Use one depth per surface.** Result list and facet counts at different depths describe different universes, and the numbers beside each other disagree.
-- `CoverageSetup` — Fine-grained control (see advanced sections below).
+- The query's three parts (6.0, in place of `CoverageSetup`, `CoverageDepth` and the boost flags):
+  - `Match` — what counts as a hit: `Tolerance` (`Exact`, `OneEdit`, `TwoEdits`, the default, which leaves each field its own `CoverageStrictness`), `Rungs` (`Fewest`, `All`), `OneEditFrom` 3, `TwoEditsFrom` 6, `CursorAt`, `TypingPrefixFrom` 3, `TypingPrefixOneEditFrom` 6, `JoinedWords`.
+  - `Candidates` — who comes in: every document holding the query's words on the first rung with hits is counted (`Result.ToleranceCounts`, never capped); the best of them up to the bound are ranked, the rows times `CandidatesPerRow` (4), at most 5 000, or `MaxCandidates`; `Result.Overflow` says when the count was more. `Fallback` (default true): when nothing is counted, the most words then pattern matches (`Result.IsFallback`). `IndexTerms`.
+  - `Ranking` — the order: `Share` (0.2, Coverage's share of the blend), `TypingShift`, `LongFieldFrom`/`LongFieldWeightFloor`, `WholeQueryFloor`, `FieldWeights`, `FieldBoosts`, `Boosts`, `Buries` (a list that is not empty is on).
+  - **Facets are counted over the counted documents**, the whole rung, so they agree with `ToleranceCounts`, not with the rows returned.
 
 ### Language handling
 
 Indx has no per-language tokenizer, stemmer or stop-word list, and does not need one to work in Norwegian, English or mixed-language data. What replaces them:
 
-- **Typos and spelling variants** — pattern matching with one-edit tolerance (`Coverage.CoverFuzzyWords`).
-- **Inflections and prefixes** — a query word that is a prefix of a document word matches (`CoverPrefixSuffix`): *run* finds *running*, *bok* finds *bokhandel*. The reverse direction (query *running*, document *run*) is covered by pattern matching but scores lower under Coverage; add a one-way synonym (*running → run*) when that direction matters for a term.
-- **Compound words (sammensatte ord)** — *spesialpedagogikk* matches *spesial pedagogikk* and vice versa without rules (`CoverJoinedWords`). Decomposition and recomposition both work; no dictionary is involved.
+- **Typos and spelling variants** — one edit from three letters, two from six (`Match.Tolerance`, `OneEditFrom`, `TwoEditsFrom`).
+- **Inflections and prefixes** — a query word that is a prefix of a document word matches: *run* finds *running*, *bok* finds *bokhandel*. The reverse direction (query *running*, document *run*) is covered by pattern matching but scores lower under Coverage; add a one-way synonym (*running → run*) when that direction matters for a term.
+- **Compound words (sammensatte ord)** — *spesialpedagogikk* matches *spesial pedagogikk* and vice versa without rules (`Match.JoinedWords`). Decomposition and recomposition both work; no dictionary is involved.
 - **Domain vocabulary** — synonyms, editable by editors without code (next section).
 
 So on a "stemming" checklist: Indx does not ship a stemmer because the matcher already handles the common cases; the remaining case (long inflected query, short stored form) is a synonym entry.
@@ -190,10 +191,10 @@ For a whole-catalogue reload use `POST …/replace` (Indx): the old index keeps 
 
 ### Boost rules, campaigns and personalisation
 
-Boosts lift matching documents when a search runs with `enableBoost`. Two layers:
+Boosts lift matching documents. Two layers:
 
-- **Saved boost rules** (Cloud UI **Boost rules** tab; `GET/PUT/DELETE …/boosts`): a rule has a name, an `enabled` flag, conditions on filterable fields (`{field, value}` or `{field, min, max}`, joined with AND/OR), a strength (Low/Med/High) and an optional schedule (`activeFrom`, `activeUntil` dates) — campaign windows without code changes. Rules stack.
-- **Ad-hoc boosts per query** (`Query.Boosts` / `POST …/boosts/from-filter`): boost any filter, including an OR of many value filters. This is how **per-user personalisation** works — build a boost list from the user's history or segment and pass it with the query; hundreds of thousands of boosted documents cost little. See [references/csharp.md](references/csharp.md#boosts).
+- **Saved boost rules** (Cloud UI **Boost rules** tab; `GET/PUT/DELETE …/boosts`): a rule has a name, an `enabled` flag, conditions on filterable fields (`{field, value}` or `{field, min, max}`, joined with AND/OR), a strength (Low/Med/High) and an optional schedule (`activeFrom`, `activeUntil` dates) — campaign windows without code changes. Rules stack, and apply to every search (until 6.0 only with `enableBoost`).
+- **Ad-hoc boosts per query** (`Query.Ranking.Boosts`, `ranking.boosts` over HTTP / `POST …/boosts/from-filter`): boost any filter, including an OR of many value filters. This is how **per-user personalisation** works — build a boost list from the user's history or segment and pass it with the query; hundreds of thousands of boosted documents cost little. See [references/csharp.md](references/csharp.md#boosts).
 
 Scheduled rules that pass their end date stop applying but are kept; the Cloud UI flags them (chip, summary, tab badge) and notifies the team's editors. Import/export the rule list as JSON from the tab, the same array as `GET/PUT …/boosts`.
 
@@ -327,14 +328,13 @@ with no records means an honest no-match. Full page, kept in step with this list
 
 | Symptom | First suspect |
 |---|---|
-| Every query returns nothing | A `fieldBoosts` key that is not a searchable field; `reason` names it. Or the dataset is not `Ready` |
+| Every query returns nothing | A `ranking.fieldBoosts` key that is not a searchable field; `reason` names it. Or the dataset is not `Ready` |
 | An empty query returns nothing | `enableFacets` missing (and at least one facetable field needed) |
-| The MCP `search` finds nothing but the app's search box finds hits | Not a fault. The MCP tool sets `includePatternMatches=false`; over HTTP `coverageSetup` is usually absent and it defaults to **true**. Pass `broaden: true` to compare like with like |
+| The MCP `search` finds nothing but the app's search box finds hits | Not a fault. The MCP tool sets `candidates.fallback=false`; over HTTP `candidates` is usually absent and it defaults to **true**. Pass `broaden: true` to compare like with like |
 | A field is in results but never matches | It arrived through insert/update and was never indexed — only `replace` can add a field |
 | A configuration call fails with `400 invalidArgument` | It named a field the engine has not discovered — the mirror of the case above |
-| A count is suspiciously round | It equals `coverageDepth`: the cap, not the data |
-| List and facet counts disagree | They ran at different `coverageDepth` |
-| Ranking changed unexpectedly | `fieldBoosts` multiply the configured weight, they do not replace it |
+| A count is suspiciously round | It equals the candidate bound: read `toleranceCounts`, the real count; `overflow` says the bound was reached |
+| Ranking changed unexpectedly | `ranking.fieldBoosts` multiply the configured weight, they do not replace it; the dataset's boost and bury rules apply to every search |
 | `403 insufficientKeyScope` | The key's level is below the endpoint's requirement |
 | `404` on a team or dataset that exists | Outside the key's scope — deliberately identical to missing. A renamed dataset does this to keys that list it by name |
 | Works locally, `401` in production | Keys are signed per server; that key belongs to the other one |
@@ -346,7 +346,7 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 
 | Capability | | How |
 |---|---|---|
-| Field weighting, per-query field boosts | ✅ | `Weight`, `FieldBoosts` |
+| Field weighting, per-query field boosts | ✅ | `Weight`, `Ranking.FieldBoosts` |
 | Typo tolerance | ✅ | built in, no config |
 | Search-as-you-type / autocomplete | ✅ | full ranked search per keystroke; no separate suggest endpoint needed |
 | Stemming | 🟠 | prefix/compound matching built in; reverse inflection via one-way synonyms |
@@ -368,7 +368,7 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 | Spell-check "did you mean" | ❌ | not needed: the corrected match is returned directly |
 | Search analytics (null results, popular queries) | ❌ | only a search counter; log `query.LogPrefix` into your own pipeline |
 | Behavioural tracking / consent events | ❌ | none by design — no telemetry in the engine |
-| A/B testing of relevance | 🟠 | `FieldBoosts` per query, or a second engine via `CreateInMemoryClone` |
+| A/B testing of relevance | 🟠 | `Ranking` per query, or a second engine via `CreateInMemoryClone` |
 | Client timeout | ✅ | `TimeOutLimitMilliseconds` + `DidTimeOut`; abort the HTTP request for hard cancel |
 | SSR / server-side SDK | ✅ | REST + `indx-types`; see Integration notes |
 | EU/EEA hosting, DPA | ✅ | self-host anywhere; the Azure Managed App deploys into your own subscription in the region you choose (e.g. Norway East); DPA on request |
@@ -380,7 +380,7 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 - **No language configuration** — inflections, compounds and typos are handled by character-level matching, so there are no tokenizers, stemmers or stop-word lists to maintain per language; synonyms cover domain vocabulary
 - **Built-in typo tolerance** — pattern matching handles misspellings automatically
 - **In-memory indexing** — all search indexes live in memory for speed; persistence is metadata-only
-- **Linear coverage scaling** — coverage cost scales linearly with `coverageDepth`
+- **Linear coverage scaling** — coverage cost scales linearly with the candidates ranked (`Candidates.CandidatesPerRow`, `MaxCandidates`)
 - **Schemaless JSON** — nested objects supported, fields discovered automatically via `Init`/`Analyze`
 - **Two-step retrieval** — search returns keys + scores; fetch full documents separately: `GetJsonDataOfKey` in the C# NuGet API, `POST …/documents/lookup` in the HTTP API
 
