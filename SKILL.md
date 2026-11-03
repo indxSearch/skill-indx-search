@@ -53,7 +53,7 @@ Tools:
 
 - **`list_datasets`** — datasets the token can reach, with document counts and state.
 - **`describe_dataset(team, dataset)`** — configured fields with capabilities, plus **value hints** (distinct values for facetable fields, numeric ranges), an owner description, and a sample document. Call first so the agent filters with real values.
-- **`search(team, dataset, query, filters?, limit?, fields?, broaden?, facets?)`** — ranked hits with scores. Declarative AND filters (`{field, value}` or `{field, min, max}`). **Precise by default** (`candidates.fallback=false`) so an empty result is a trustworthy no-match; pass `broaden: true` for fuzzy recall.
+- **`search(team, dataset, query, filters?, limit?, fields?, broaden?, facets?)`** — ranked hits with scores. Declarative AND filters (`{field, value}` or `{field, min, max}`). **Precise by default** (`candidates.fallback=false`) so an empty result is a trustworthy no-match; pass `broaden: true` for fuzzy recall (`candidates.rest` and `candidates.fallback` on: pattern matches below the near-exact hits, and in their place when there are none). The result's `total` is the number of matches, `count` the hits returned.
 - **`get_document(team, dataset, key)`** — full JSON for a key.
 - **`get_synonyms(team, dataset)`** — the dataset's synonym list (an empty `entries` array when it has none). Explains why a search matched more than its literal words (queries expand through the list before scoring).
 
@@ -331,7 +331,7 @@ with no records means an honest no-match. Full page, kept in step with this list
 |---|---|
 | Every query returns nothing | A `ranking.fieldBoosts` key that is not a searchable field; `reason` names it. Or the dataset is not `Ready` |
 | An empty query returns nothing | `enableFacets` missing (and at least one facetable field needed) |
-| The MCP `search` finds nothing but the app's search box finds hits | Not a fault. The MCP tool sets `candidates.fallback=false`; over HTTP `candidates` is usually absent and it defaults to **true**. Pass `broaden: true` to compare like with like |
+| The MCP `search` finds nothing but the app's search box finds hits | Not a fault. The MCP tool sets `candidates.fallback=false`; over HTTP `candidates` is usually absent and it defaults to **true**. Pass `broaden: true` to compare like with like (it also adds pattern matches below the hits, `candidates.rest`) |
 | A field is in results but never matches | It arrived through insert/update and was never indexed — only `replace` can add a field |
 | A configuration call fails with `400 invalidArgument` | It named a field the engine has not discovered — the mirror of the case above |
 | A count is suspiciously round | It equals the candidate bound: read `count` (or `toleranceCounts` by rung), the real count; `count` above `ranked` says the bound was reached |
