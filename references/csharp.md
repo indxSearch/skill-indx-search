@@ -261,7 +261,11 @@ Result properties:
   `TwoEdits` (each with those before it; a rung not worked out is null), and with `Candidates.Rest`
   the `Rest`: the counted rung and the related documents taken below it. Null in `Bm25f` mode
 - `CountedTolerance` — the rung the list was taken from; null when nothing was counted
-- `Overflow` — the counted documents were more than the candidate bound; the best of them were ranked
+- `Count` — how many documents answer, in every mode: the rung counted (with `Candidates.Rest` the
+  rest too), the fallback's most-words documents, every document with a score in `Bm25f`, every
+  document the filter lets through in an empty search
+- `Ranked` — how many were ranked, at most the candidate bound. `Count > Ranked`: the bound was too
+  small; `Ranked > Records.Length`: more were ranked than the rows asked for
 - `IsFallback` — no document held every word: the most words first, then pattern matches
 - `DidTimeOut` — `true` when the search could not be **served**, rather than served and found nothing.
   Two causes: it exceeded the timeout, or the engine was not `Ready` (loading, indexing, hibernated).
@@ -457,7 +461,7 @@ query.Match.Rungs = Rungs.All;
 query.Candidates.MaxCandidates = 5000;
 ```
 The count (`Result.ToleranceCounts`) is never capped; the bound decides how many of the counted
-documents are ranked (`Result.Overflow` when it was reached). Cost is linear in the candidates.
+documents are ranked (`Result.Count` above `Result.Ranked` when it was reached). Cost is linear in the candidates.
 
 **Empty search — browse mode with sorting and facets.** `EnableFacets` is what makes empty text
 legal: without it the search is refused, returning an empty `Result` with a `Reason`, which is not the

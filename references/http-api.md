@@ -336,7 +336,7 @@ and responses alike (a number in a request is still accepted): `mode` `EditDista
 - `candidates` — every record holding the query's words on the first rung with hits (exactly, else
   one edit, else two) is counted, `toleranceCounts` in the result, never capped. The best of them up
   to the bound are ranked: the rows times `candidatesPerRow` (4), at most 5 000, or `maxCandidates`;
-  `overflow` says the bound was reached. `fallback: false` returns an empty list when nothing is
+  `count` above `ranked` says the bound was reached. `fallback: false` returns an empty list when nothing is
   counted, instead of the most words then pattern matches (`isFallback`). `rest: true` (EditDistance)
   adds pattern recognition's best records not counted below the counted ones, up to the bound,
   counted in `toleranceCounts.rest`; none on overflow. Facet counts are counted over the counted
@@ -372,7 +372,8 @@ Every key must be a **searchable** field. A key that is not (unknown, or made no
   },
   "toleranceCounts": { "exact": 37, "oneEdit": null, "twoEdits": null },
   "countedTolerance": "Exact",
-  "overflow": false,
+  "count": 37,
+  "ranked": 37,
   "isFallback": false,
   "didTimeOut": false
 }
@@ -386,7 +387,11 @@ Every key must be a **searchable** field. A key that is not (unknown, or made no
 - `toleranceCounts` — records holding every query word exactly, within one edit, within two (each
   with those before it; `null` when not worked out). `countedTolerance` — the rung the list came from
   (`Exact`, `OneEdit`, `TwoEdits`), `null` when nothing was counted. With `candidates.rest`,
-  `toleranceCounts.rest` is the counted rung and the related records taken below it. Absent in `Bm25f` mode. `overflow`, `isFallback` as above.
+  `toleranceCounts.rest` is the counted rung and the related records taken below it. Absent in `Bm25f` mode. `isFallback` as above.
+- `count` — how many records answer, in every mode (in `Bm25f` every record with a score, in an
+  empty search every record the filter lets through). `ranked` — how many were ranked, at most the
+  bound: `count` above `ranked` means the bound was too small, `ranked` above the records returned
+  that a next page has more.
 - `didTimeOut` — the search could not be *served*, as opposed to serving and finding nothing: either it
   hit the timeout limit, or the engine was not `Ready`. Over HTTP the not-Ready case normally surfaces
   as `409` with the current state before it gets this far, so on this surface the flag almost always
