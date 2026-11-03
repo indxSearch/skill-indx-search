@@ -394,6 +394,29 @@ and responses alike (a number in a request is still accepted): `mode` `EditDista
 ```
 Every key must be a **searchable** field. A key that is not (unknown, or made non-searchable since) empties the whole search: `200`, no records, and a `reason` naming the field. A boost multiplies the weight — `weight: 3.0` × boost `2.0` = 6×; omitted fields keep their weight. Every dataset on the server scores in BM25F mode with one k1, so field boosts always apply; a changed `bM25k1` in `PUT fields/configuration` is refused.
 
+#### Search values: request, then dataset, then default
+
+`mode` and every member of `match`, `candidates` and `ranking` are resolved **one at a time**: the
+value the request sends, else the dataset's **query parameters**, else the engine default. The
+dataset's values are set on the console's Query parameters tab or with the API:
+
+```
+GET    /api/teams/{team}/datasets/{ds}/query-parameters   → { "parameters": {…}, "effective": {…} }
+PUT    /api/teams/{team}/datasets/{ds}/query-parameters   body: { "match": { "tolerance": "OneEdit" }, "candidates": { "maxCandidates": 1000 } }
+DELETE /api/teams/{team}/datasets/{ds}/query-parameters
+```
+
+`parameters` holds what the dataset sets (null elsewhere); `effective` is what a search that sends
+none of these values runs with. A search key may `GET` it; `PUT`/`DELETE` need write access. Changes
+apply from the next search, no reindex. A search's own values are refused in a `PUT` (`400`):
+`match.cursorAt`, `candidates.indexTerms`, `ranking.fieldWeights`/`fieldBoosts`/`boosts`/`buries`.
+
+- **Send only what the search must decide.** Every value sent overrides the dataset's.
+- **A search that used a dataset value says so** in the `Indx-Query-Parameters` response header,
+  e.g. `match.tolerance, candidates.maxCandidates`. Absent when nothing came from the dataset.
+- In C#, `QueryProxy.Mode` is `SearchMode?`, `QueryProxy.Match` a `MatchProxy` and
+  `QueryProxy.Candidates` a `CandidateProxy`, every member nullable, as are `RankingProxy`'s settings.
+
 
 ### Result (Search Response)
 
