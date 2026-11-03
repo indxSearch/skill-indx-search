@@ -58,7 +58,7 @@ moved to one of three parts, each never null.
 
 | v5 | v6 |
 |----|----|
-| `Query.CoverageDepth` | `Candidates.MaxCandidates` (`int?`, null: the rows × `CandidatesPerRow`, 4, at most 5 000) |
+| `Query.CoverageDepth` | `Candidates.MaxCandidates` (`int?`, outright; null: the rows × `CandidatesPerRow`, 4, at least 200, at most 5 000) |
 | `CoverageSetup.IncludePatternMatches` | `Candidates.Fallback` |
 | `Query.IndexTerms` | `Candidates.IndexTerms` |
 | `CoverageSetup.Strictness` | `Match.Tolerance` (`Exact`, `OneEdit`, `TwoEdits`) |
