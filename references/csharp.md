@@ -206,10 +206,11 @@ engine.LoadFieldConfiguration("fieldconfig.json");
 ```csharp
 var query = new Query("search text", maxResults)
 {
-    Mode = SearchMode.Coverage,             // default: Coverage (or Bm25f, EditDistance)
+    Mode = SearchMode.EditDistance,         // default: EditDistance (or Bm25f)
     Match = { Tolerance = Tolerance.TwoEdits, Rungs = Rungs.Fewest },     // what counts as a hit
     Candidates = { CandidatesPerRow = 4, MaxCandidates = null, Fallback = true }, // who comes in
     Ranking = {                             // the order
+        Rerank = true,                      // default: Coverage reranks the candidates, in either mode
         Share = 0.2f,                       // Coverage's share of the blend
         Boosts = boostArray,                // Boost[]; a list that is not empty is on
         FieldBoosts = new Dictionary<string, float> { ["title"] = 2.0f }, // BM25F per-query boost
@@ -428,14 +429,21 @@ var query = new Query("search text", 20)
 query.Candidates.Fallback = false;
 ```
 
-**Pattern matching only (disable coverage):**
+**Pattern matching only (no Coverage):**
 ```csharp
 query.Mode = SearchMode.Bm25f;
+query.Ranking.Rerank = false;
+```
+
+**Pattern matching, reranked by Coverage (no word count):**
+```csharp
+query.Mode = SearchMode.Bm25f;   // Rerank is true by default
 ```
 
 **Words within an edit, exact first, with a count, no Coverage:**
 ```csharp
-query.Mode = SearchMode.EditDistance;
+query.Mode = SearchMode.EditDistance;   // the default
+query.Ranking.Rerank = false;
 ```
 
 **Every rung up to the tolerance, not only the first with hits:**

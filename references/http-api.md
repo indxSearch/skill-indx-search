@@ -301,11 +301,11 @@ Full (with defaults shown):
 {
   "text": "search terms",
   "maxNumberOfRecordsToReturn": 30,
-  "mode": "Coverage",
+  "mode": "EditDistance",
   "match": { "tolerance": "TwoEdits", "rungs": "Fewest", "oneEditFrom": 3, "twoEditsFrom": 6, "cursorAt": null,
              "typingPrefixFrom": 3, "typingPrefixOneEditFrom": 6, "joinedWords": true },
   "candidates": { "candidatesPerRow": 4, "maxCandidates": null, "indexTerms": "Both", "fallback": true },
-  "ranking": { "share": 0.2, "typingShift": 0.5, "longFieldFrom": 0, "longFieldWeightFloor": 0.1,
+  "ranking": { "rerank": true, "share": 0.2, "typingShift": 0.5, "longFieldFrom": 0, "longFieldWeightFloor": 0.1,
                "wholeQueryFloor": true, "fieldWeights": null, "fieldBoosts": null,
                "boosts": null, "buries": null },
   "enableFacets": false,
@@ -320,8 +320,9 @@ Full (with defaults shown):
 ```
 
 Any part may be left out or `null`: its defaults apply. Enums are written **by name**, in requests
-and responses alike (a number in a request is still accepted): `mode` `Bm25f`, `EditDistance`,
-`Coverage` (default); `match.tolerance` `Exact`, `OneEdit`, `TwoEdits` (default, the fields' own
+and responses alike (a number in a request is still accepted): `mode` `EditDistance` (default),
+`Bm25f`, with `ranking.rerank` (default `true`) whether Coverage reranks the records in either
+(until 6.0 `mode` also took `Coverage`, `EditDistance` reranked); `match.tolerance` `Exact`, `OneEdit`, `TwoEdits` (default, the fields' own
 `tolerance`); `match.rungs` `Fewest`, `All`; `candidates.indexTerms` `Both`, `Words`, `Patterns`. The pre-6.0 fields (`enableCoverage`,
 `coverageDepth`, `coverageSetup`, `enableBoost`, `enableBury`, top-level `fieldBoosts`, `boosts`,
 `buries`) are no longer read.
