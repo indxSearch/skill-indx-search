@@ -86,7 +86,7 @@ A `409 invalidState` is returned when an operation is valid but the dataset's `s
 ```json
 {
   "status": 409,
-  "detail": "Search cannot run on dataset 'products' because it is currently Indexing. Indexing is in progress — retry once the dataset reaches Ready.",
+  "detail": "The dataset is being indexed. Try again in a moment.",
   "code": "invalidState",
   "currentState": "Indexing",
   "allowedStates": ["Ready"],
@@ -134,6 +134,34 @@ A `409 invalidState` is returned when an operation is valid but the dataset's `s
 ```
 
 Surface `lostRoles` and `keyFieldFallback` to the user — they are the changes that alter search behaviour. Boost rules referencing a removed field go dormant (not deleted) and re-apply if the field returns.
+
+#### What each call does to data already in the dataset
+
+The calls are not interchangeable, and the difference is what happens to what is there:
+
+| Call | Documents already there | Field configuration | Serving while it runs |
+|---|---|---|---|
+| `analyze` | **Dropped from memory.** On a dataset that has been loaded, the running engine is discarded and a new, empty one takes its place | **Replaced** by the fields found in this body, with no roles | **Stops**, until `load` and `index` finish |
+| `load` | **Replaced.** It clears the dataset and loads its body; a second `load` does not append | Kept | Not searchable until `index` finishes |
+| `replace` | Replaced, atomically | Carried over; new fields arrive unconfigured (`added`) | **Keeps serving** the old data until the swap |
+| `POST documents` | **Added to.** A key that already exists is refused, and the whole batch with it | Kept; a field it does not know is refused | Keeps serving; searchable at once |
+| `PUT documents` | Replaces the documents named by key | Kept | Keeps serving |
+
+Two consequences that are easy to miss:
+
+- **Never call `analyze` on a live dataset** to pick up a schema change: it takes the dataset offline and resets every field role. `replace` is the call for that.
+- **`analyze` decides which fields exist.** Analyzing a sample is fine, but only if the sample contains every field. A field missing from the analyzed body is unknown afterwards, and every later insert or update carrying it is refused with `400 invalidArgument`.
+
+#### Choosing a path
+
+| Situation | Calls |
+|---|---|
+| First load | `analyze` → `PUT fields/configuration` → `load` → `index` → poll `status` |
+| First load too large for one request | `analyze` a sample containing every field → configure → `load` the first part → `index` → `POST documents` with the rest, in batches |
+| Full reload with no downtime (new export, new or changed fields) | `replace`, with the whole set in one request |
+| Keeping a live dataset in sync | `POST`, `PUT`, `PATCH` and `DELETE` on `documents` |
+
+**Request size.** The server takes bodies up to 2 GB, so `analyze`, `load` and `replace` normally take a whole catalogue in one request. A proxy in front of it can have a lower limit of its own and answer `413` before the server sees the body: see "Request Size Limits" in `cloudapi-setup.md`. Splitting a `replace` is not possible, since its point is to swap everything at once.
 
 ### Field Configuration
 
@@ -242,16 +270,27 @@ counts on the document — it just finds no search to join. All statistics route
 | POST | `events/select` | `{queryId?, documentKey, position, subject?, count?}` | The user chose a result; `position` is 1-based in the list. Search key suffices → `202` |
 | POST | `events/convert` | `{queryId?, documentKey, type, subject?, count?}` | Something valuable happened — `type` is your own name for it (`"order"`, `"addToCart"`). Counted per document, the signal for personalised boosting; `value`/`currency`/`quantity` are accepted but not reported. `queryId` optional: an order may come long after the search. Search key → `202` |
 | GET | `statistics/overview` | `?days=30` | The window's totals with the rates computed server-side: `uncoveredRate` (searches coverage confirmed nothing for: typos too large for an exact match), `uncoveredChosen` (of those, the ones a result was chosen from anyway: fuzzy finds), `clickThroughRate` (searches with ≥1 select over ALL searches), `averageClickPosition` — `null` when the denominator is zero, never 0%. `zeroHitRate` stays for compatibility. Read key |
-| GET | `statistics/timeseries` | `?days=30` | One row per UTC day (`date` as `yyyy-MM-dd`), zero rows included so charts have no holes. Read key |
+| GET | `statistics/timeseries` | `?days=30` | One row per day in the dataset's time zone (`date` as `yyyy-MM-dd`), zero rows included so charts have no holes. Read key |
 | GET | `statistics/filters` | `?days&limit` | Browsing: uses and zero-hit count per filter value (`field`, `value`; a range has an empty `value`), with or without text. Read key |
 | GET | `statistics/changes` | `?days=30` | What the dataset's owners changed, beside the numbers: `changes` (`at`, `kind`: synonyms, boostRules, fields, reindex, replace, documents, hibernate, wake, rename, delete; `summary` of counts and field names, never content or who) and `documents` (inserted/updated/deleted per day). A single request changing ≥1 000 documents (or a tenth of the dataset) and every by-filter operation is a `documents` change of its own. Read key |
-| GET / PUT | `statistics/settings` | `{recordFilters}` | Whether each search's filter is stored (Browsing). On by default; switch off on datasets of people, where a filter value can be a name. Off stops the recording; values already recorded stay until they age out or the statistics are erased. PUT needs a Full key and team admin |
+| GET / PUT | `statistics/settings` | `{recordFilters, labelField, timeZone}` | Whether each search's filter is stored (Browsing). On by default; switch off on datasets of people, where a filter value can be a name. Off stops the recording; values already recorded stay until they age out or the statistics are erased. PUT needs a Full key and team admin |
 | GET | `statistics/queries` | `?days&limit&uncoveredOnly&order` | Top queries with searches, selects, clicked-search count and position sum. `uncoveredOnly=true` lists the misspelled searches (coverage confirmed nothing) with `uncoveredChosen` (a result chosen anyway: fuzzy search found it) and `mostChosenDocument` (the result chosen most). `order`: `searches` (default), `lowestClickThrough` (searched often, chosen from rarely: missing what people want, or ranking it too low), `highestClickThrough`, `chosenAnyway` (with `uncoveredOnly`); the two click-through orders leave out queries searched fewer than five times. Read key |
 | GET | `statistics/queries/documents` | `?text&days&limit` | For one query (`text`, lowercased like the query list): every document chosen from its results with `selects`, `positionSum` and the `converts` from the same searches, most chosen first. Tells whether a rarely chosen query found the thing itself or a substitute. From the raw rows, so up to 90 days back. `text` missing → `400`. Read key |
-| GET | `statistics/documents` | `?days&limit` | Top documents: selects and conversions. Read key |
+| GET | `statistics/documents` | `?days&limit` | Top documents: selects and conversions, with a `label` (see below). Read key |
+| GET | `statistics/sources` | `?days=30` | The surfaces searched from in the window, most searched first: `source` and `searches` (counted as the overview counts them; a surface with only browsing is listed with `0`); searches sent without `?source=` are the row with `source: null`. Read key |
 | GET | `statistics/subjects/{subject}` | `?limit=10` | One subject's lifetime top documents — the personalization read. Read key |
-| DELETE | `statistics` | — | Purge the dataset's statistics (Full key + team Admin) → `204` |
+| DELETE | `statistics` | `?source&from&to` | Bare: purge the dataset's statistics. With `source` and/or `from`/`to` (days `yyyy-MM-dd` in the dataset's time zone, inclusive): only those searches with their clicks and conversions, for removing test traffic; the owners' changes stay. Full key + team Admin → `204` |
 | DELETE | `statistics/subjects/{subject}` | — | GDPR erasure of one subject: its edge rows are deleted and its raw rows anonymised, so aggregates stay true (Full key + team Admin) → `204` |
+
+**Checking that clicks join their search:** the event posts answer `202` before anything is written and accept an unknown `queryId`, so they cannot say whether a click joined. Read it back instead, a few seconds later: after a counted search and a click carrying its `Indx-Query-Id`, `GET statistics/queries/documents?days=1&text=<query>` lists the clicked document. A click that did not join counts on the document only (`statistics/documents`), not on the query. A `count=false` search and its clicks are left out of the reads, so check with a counted one.
+
+**Labels:** `documents`, `queries/documents` and `subjects/{subject}` carry a `label` per document, and the misspelled-query list a `mostChosenLabel`: the value of the first searchable field (usually the title), or of `labelField` set with `PUT statistics/settings` (`{"labelField": "author.name"}`; `""` resets; an unknown field is `400`; a PUT leaves out what it does not send). `null` while the dataset sleeps: a statistics read never wakes it.
+
+**Days and time zones:** a day runs midnight to midnight in the dataset's `timeZone` (an IANA name such as `Europe/Oslo`, set with `PUT statistics/settings`; UTC unless set, or the operator's `Statistics:TimeZone`). Every read and the `from`/`to` of a delete count in it. Changing it counts the kept 90 days again; older days keep their old cut. Unknown name → `400`.
+
+**A server-rendered page needs a session too:** make an id per page view and carry it through paging, sorting and facet clicks, or each of those counts as another search. The server never merges searches without a session. **A strict search (`includePatternMatches: false`) and its fuzzy retry, sent with the same session, are one search**: the retry is kept, and a click on it is a fuzzy find. Without a session they are two, one of them a zero-hit search.
+
+**One surface:** `overview`, `timeseries`, `queries`, `queries/documents`, `documents` and `filters` take `?source=` and then count only the searches sent with it. A select or conversion counts for the surface of the search its `queryId` names; one without a `queryId` is in the totals only. An unknown source gives zeros, not the totals. Read from the raw rows, so up to 90 days back by default. The console's Statistics tab has a surface selector for the same split.
 
 **`subject`** is one optional opaque string you define: an end-user id, a session id, or a
 customer segment. Send it on search (`?subject=`) and on the events; omitted means anonymous
@@ -296,7 +335,7 @@ Minimal:
 { "text": "search terms", "maxNumberOfRecordsToReturn": 30 }
 ```
 
-Full (with defaults shown):
+Full (with defaults shown; `coverageDepth` and `coverageSetup` are best left out, see below):
 ```json
 {
   "text": "search terms",
