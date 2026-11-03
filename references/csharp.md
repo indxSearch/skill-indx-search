@@ -211,7 +211,7 @@ var query = new Query("search text", maxResults)
     Candidates = { CandidatesPerRow = 4, MaxCandidates = null, Fallback = true, Rest = false }, // who comes in
     Ranking = {                             // the order
         Rerank = true,                      // default: Coverage reranks the candidates, in either mode
-        Share = 0.2f,                       // Coverage's share of the blend
+        Share = 0.2f,                       // the reranker's share of the blend
         Boosts = boostArray,                // Boost[]; a list that is not empty is on
         FieldBoosts = new Dictionary<string, float> { ["title"] = 2.0f }, // BM25F per-query boost
     },
