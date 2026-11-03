@@ -335,7 +335,7 @@ and responses alike (a number in a request is still accepted): `mode` `EditDista
 
 - `candidates` — every record holding the query's words on the first rung with hits (exactly, else
   one edit, else two) is counted, `toleranceCounts` in the result, never capped. The best of them up
-  to the bound are ranked: the rows times `candidatesPerRow` (4), at least 200 and at most 5 000, or `maxCandidates` outright;
+  to the bound are ranked: the rows times `candidatesPerRow` (4), at least 100 and at most 5 000, or `maxCandidates` outright;
   `count` above `ranked` says the bound was reached. `fallback: false` returns an empty list when nothing is
   counted, instead of the most words then pattern matches (`isFallback`). `rest: true` (EditDistance)
   adds pattern recognition's best records not counted below the counted ones, up to the bound,
