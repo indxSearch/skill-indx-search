@@ -304,7 +304,7 @@ Full (with defaults shown):
   "mode": "EditDistance",
   "match": { "tolerance": "TwoEdits", "rungs": "Fewest", "oneEditFrom": 3, "twoEditsFrom": 6, "cursorAt": null,
              "typingPrefixFrom": 3, "typingPrefixOneEditFrom": 6, "joinedWords": true },
-  "candidates": { "candidatesPerRow": 4, "maxCandidates": null, "indexTerms": "Both", "fallback": true },
+  "candidates": { "candidatesPerRow": 4, "maxCandidates": null, "indexTerms": "Both", "fallback": true, "rest": false },
   "ranking": { "rerank": true, "share": 0.2, "typingShift": 0.5, "longFieldFrom": 0, "longFieldWeightFloor": 0.1,
                "wholeQueryFloor": true, "fieldWeights": null, "fieldBoosts": null,
                "boosts": null, "buries": null },
@@ -337,8 +337,10 @@ and responses alike (a number in a request is still accepted): `mode` `EditDista
   one edit, else two) is counted, `toleranceCounts` in the result, never capped. The best of them up
   to the bound are ranked: the rows times `candidatesPerRow` (4), at most 5 000, or `maxCandidates`;
   `overflow` says the bound was reached. `fallback: false` returns an empty list when nothing is
-  counted, instead of the most words then pattern matches (`isFallback`). Facet counts are counted
-  over the counted records, so they agree with `toleranceCounts`.
+  counted, instead of the most words then pattern matches (`isFallback`). `rest: true` (EditDistance)
+  adds pattern recognition's best records not counted below the counted ones, up to the bound,
+  counted in `toleranceCounts.rest`; none on overflow. Facet counts are counted over the counted
+  records (and the rest), so they agree with `toleranceCounts`.
 - `ranking.boosts` / `ranking.buries` — the tokens from `boosts/from-filter` and
   `buries/from-filter`; a list that is not empty is on. The dataset's saved boost and bury rules
   apply to every search.
@@ -383,7 +385,8 @@ Every key must be a **searchable** field. A key that is not (unknown, or made no
   empty either way, so check it alongside `didTimeOut` and never render a refusal as "no results".
 - `toleranceCounts` — records holding every query word exactly, within one edit, within two (each
   with those before it; `null` when not worked out). `countedTolerance` — the rung the list came from
-  (`Exact`, `OneEdit`, `TwoEdits`), `null` when nothing was counted. Absent in `Bm25f` mode. `overflow`, `isFallback` as above.
+  (`Exact`, `OneEdit`, `TwoEdits`), `null` when nothing was counted. With `candidates.rest`,
+  `toleranceCounts.rest` is the counted rung and the related records taken below it. Absent in `Bm25f` mode. `overflow`, `isFallback` as above.
 - `didTimeOut` — the search could not be *served*, as opposed to serving and finding nothing: either it
   hit the timeout limit, or the engine was not `Ready`. Over HTTP the not-Ready case normally surfaces
   as `409` with the current state before it gets this far, so on this surface the flag almost always

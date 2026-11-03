@@ -208,7 +208,7 @@ var query = new Query("search text", maxResults)
 {
     Mode = SearchMode.EditDistance,         // default: EditDistance (or Bm25f)
     Match = { Tolerance = Tolerance.TwoEdits, Rungs = Rungs.Fewest },     // what counts as a hit
-    Candidates = { CandidatesPerRow = 4, MaxCandidates = null, Fallback = true }, // who comes in
+    Candidates = { CandidatesPerRow = 4, MaxCandidates = null, Fallback = true, Rest = false }, // who comes in
     Ranking = {                             // the order
         Rerank = true,                      // default: Coverage reranks the candidates, in either mode
         Share = 0.2f,                       // Coverage's share of the blend
@@ -258,7 +258,8 @@ Result properties:
   case-insensitively, as a value filter compares, and shown as first written, so a corpus that spells
   it both ways lists it once, and a default value filter on it returns the facet's count
 - `ToleranceCounts` — how many documents hold every query word `Exact`ly, within `OneEdit`, within
-  `TwoEdits` (each with those before it; a rung not worked out is null). Null in `Bm25f` mode
+  `TwoEdits` (each with those before it; a rung not worked out is null), and with `Candidates.Rest`
+  the `Rest`: the counted rung and the related documents taken below it. Null in `Bm25f` mode
 - `CountedTolerance` — the rung the list was taken from; null when nothing was counted
 - `Overflow` — the counted documents were more than the candidate bound; the best of them were ranked
 - `IsFallback` — no document held every word: the most words first, then pattern matches
