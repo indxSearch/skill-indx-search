@@ -23,7 +23,7 @@ This skill targets **Indx v5**: IndxSearchLib **5.x** (.NET 10) and Indx **v2** 
 | Teams | none — datasets owned by the user | datasets owned by **teams**; every endpoint is team-scoped |
 | Auth | API password login (`/api/Login`) available | **token-only** — portal-issued JWT, no login API |
 
-If the user is on **v5**, proceed normally. If on **v4**, do **not** hand them v5 routes/APIs — either answer for their v4 setup, or (recommended) help them upgrade: see [references/migration-v4-to-v5.md](references/migration-v4-to-v5.md). When the version is ambiguous, ask one quick question (NuGet version, or whether their API URLs contain `/teams/`) before proceeding.
+If the user is on **v5** and moving to **v6** (the query in three parts, `Query.Mode` with `Ranking.Rerank`, `Result.Count`), see [references/migration-v5-to-v6.md](references/migration-v5-to-v6.md). If the user is on **v5**, proceed normally. If on **v4**, do **not** hand them v5 routes/APIs — either answer for their v4 setup, or (recommended) help them upgrade: see [references/migration-v4-to-v5.md](references/migration-v4-to-v5.md). When the version is ambiguous, ask one quick question (NuGet version, or whether their API URLs contain `/teams/`) before proceeding.
 
 ## When to Use Indx
 
