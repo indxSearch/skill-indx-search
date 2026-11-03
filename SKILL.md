@@ -1,6 +1,6 @@
 ---
 name: indx-search
-description: Indx Search integration skill for AI coding agents. Use when building or evaluating search with Indx — a high-performance, typo-tolerant search engine that matches at the character-pattern level instead of relying on tokenizers or per-language stemmers. Covers C# NuGet (IndxSearchLib) and HTTP API (Indx) integration, a built-in MCP server, field configuration and weighting, search-as-you-type, filters and facets, boost rules (incl. scheduled campaigns and per-user personalisation), synonyms, vector and hybrid search, real-time document updates, zero-downtime reindexing, server-side (SSR) usage, and search UX patterns.
+description: Indx Search integration skill for AI coding agents. Use when building or evaluating search with Indx — a high-performance, typo-tolerant search engine that matches at the character-pattern level instead of relying on tokenizers or per-language stemmers. Covers C# NuGet (IndxSearchLib) and HTTP API (Indx) integration, a built-in MCP server, field configuration and weighting, search-as-you-type, filters and facets, boost rules (incl. scheduled campaigns and per-user personalisation), synonyms, vector and hybrid search, Search or ask (questions answered from your own records, in the same search field), real-time document updates, zero-downtime reindexing, server-side (SSR) usage, and search UX patterns.
 ---
 
 # Indx Search — Agent Skill
@@ -117,6 +117,19 @@ Note: Weights affect pattern recognition directly. A short text pattern in a lon
 - **Every key must be a searchable field.** A key that is not — unknown, or a field that was made non-searchable later — empties the whole search: HTTP answers `200` with no records and a `reason` naming the field, C# an empty `Result` with `Reason` set. Read `reason` before rendering "no matches". When searches that sent field boosts start returning nothing, compare the keys with `GET fields/configuration` before anything else, and remove a field from boosts when you remove `searchable` from it.
 - Boosts always apply: every dataset on the server scores in **BM25F mode** with one k1, and a changed `bM25k1` in `PUT fields/configuration` is refused.
 
+### Category hierarchies
+
+A catalogue's hierarchy needs no configuration beyond field roles: the Indx server's console draws
+it on the dataset's **Categories** tab, every category with its product count, from the data as it
+is. Two shapes are read. A **path in one field**, the Google feed way (`"product_type":
+"Furniture > Chairs > Office chairs"`, separator detected, an array of paths for a product in
+several categories), or **a level per field** sharing a prefix (`category.department`,
+`category.section`, `category.type`). Mark the field, or every field of the group, **Facetable**;
+**Filterable** too and the tab lists a category's products and drafts a boost rule on it. For a
+storefront's own menu the same histogram is an empty search with `enableFacets: true`. A field
+whose values only sometimes carry a separator (`"Gold/black"`) is not a hierarchy; six in ten
+values must.
+
 ### Filters Must Be Server-Side
 
 Never filter results client-side after a search. The search only returns a limited number of results (`maxNumberOfRecordsToReturn`), so client-side filtering on that subset will miss documents. Always create filters server-side (`CreateValueFilter` / `CreateRangeFilter` / `CombineFilters` in C#; `POST filters/value` / `filters/range` / `filters/combine` over HTTP) and pass the filter in the query (`query.Filter` in C#, `QueryProxy.filter` in HTTP) so the server applies the filter during search.
@@ -167,7 +180,9 @@ Indx has no per-language tokenizer, stemmer or stop-word list, and does not need
 - **Compound words (sammensatte ord)** — *spesialpedagogikk* matches *spesial pedagogikk* and vice versa without rules (`Match.JoinedWords`). Decomposition and recomposition both work; no dictionary is involved.
 - **Domain vocabulary** — synonyms, editable by editors without code (next section).
 
-So on a "stemming" checklist: Indx does not ship a stemmer because the matcher already handles the common cases; the remaining case (long inflected query, short stored form) is a synonym entry.
+So on a "stemming" checklist: Indx does not ship a stemmer because the matcher handles inflection by beginnings and endings. The one case left is an irregular form that shares neither with its base (*bok* and *bøker*, *mouse* and *mice*), and only there is a synonym entry the answer.
+
+**Never propose synonyms for typos, spelling variants or translation.** The matcher finds misspellings by itself, and a synonym list in two languages is not a translation: it lengthens every search, and visitors searching in another language are better served by records in that language or by Search or ask.
 
 ### Synonyms
 
@@ -197,6 +212,8 @@ For a whole-catalogue reload use `POST …/replace` (Indx): the old index keeps 
 
 **Pitfall: insert and update refuse a field the configuration does not know.** A document carrying a field that is not in the field configuration gets `400 invalidArgument` naming it (`... field(s) not in the field configuration: 'color'`, nested fields by path such as `'meta.batch'`), and nothing is stored: one such document fails its whole batch, and an update leaves the document as it was. Typical cause: a new field added in the CMS while the sync job keeps inserting. Fix: a full `replace` with a complete export, then assign roles to the field reported under `added`. Missing non-key fields are fine (treated as null); a missing key field rejects the batch. Until October 2026 such a field was accepted and silently never indexed; code written for that now gets the 400 instead.
 
+**Webhooks (Indx server): sync from a CMS or shop without your own sync code.** A team admin makes a webhook for a dataset (console *Webhooks*, or `POST …/webhooks { name, idField, versionField? }`); the sender posts its changes to the webhook's `url`, signed with its `secret`, and they are applied as inserts, updates and deletes within seconds. Sanity and Contentful are ready-made sources that need no code; any other system can send its changes with its own code. A full set can be sent once to fill an empty dataset. A **brake** holds a call that would delete or empty more than a tenth of the dataset in an hour until an admin applies or discards it (`…/webhooks/{id}/held`). Prefer a webhook to a hand-written sync job when the source can send one. Human docs: [docs.indx.co/howto/webhooks](https://docs.indx.co/howto/webhooks).
+
 ### Boost rules, campaigns and personalisation
 
 Boosts lift matching documents. Two layers:
@@ -216,6 +233,18 @@ Mark a field `Embeddable`, load vectors with the documents, and use:
 - `POST …/search/hybrid` — `{ text, vector, alpha, maxNumberOfRecordsToReturn, filter? }`: `alpha · vectorScore + (1 − alpha) · textScore`. Best for meaning-plus-keyword queries (*grisebok* finding *Peppa Gris*).
 
 Indx **stores and searches** vectors; it does not generate them — bring embeddings from your own model. Vectors of any length are accepted: Indx brings each to unit length, so scores are cosine similarity. Insert, update and delete work on datasets with vector fields, and the server keeps a sleeping dataset's vector graph on disk so it wakes without rebuilding it. Filters apply to both. Details: [references/http-api.md](references/http-api.md#vector--hybrid-models).
+
+### Search or ask
+
+Indx Server can let the search field answer questions as well. On each typing pause a judge scores what is typed (a lookup, a question, or on a catalogue a description of what to list) and the page offers to ask; when the visitor asks, an answer model writes the answer from the dataset's records only, with citations. Name lookups stay plain searches.
+
+- **Fits** records written to explain (`kind: documentation`) or records of facts (`kind: catalogue`, where a description becomes filters). Not datasets of identifiers.
+- **Three switches:** a model key on the instance, "Search or ask" shown on the dataset (a team admin), and `enabled` in its settings (an editor). Typed text then goes to the model providers: the site's privacy notice must say so.
+- **Mode** (`mode`): `strict`, `soft` (default), `open`, `inviting` or `proactive`, from only offering once sure to starting the answer on its own. Keep `soft` unless asked; `proactive` costs an answer per finished question.
+- **Settings** worth setting: `siteDescription`, `knowledge` (markdown facts no record holds, which answers may state), `filterNotes` and the Ask phrases (the dataset's own names for its records, such as "the movie") on a catalogue. Make the fields questions are about Filterable and Facetable.
+- **Front end:** with intrface, `useSearchOrAsk()` plus `onAsk`/`searchOrAsk` on `SearchInput` and an `AskPanel`; it stays quiet where the feature is off. Over HTTP: `intent` on a pause, `ask` as server-sent events. A Search key covers all of it.
+
+Setup, every setting, the API and the pitfalls: [references/search-or-ask.md](references/search-or-ask.md).
 
 ---
 
@@ -358,7 +387,7 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 | Field weighting, per-query field boosts | ✅ | `Weight`, `Ranking.FieldBoosts` |
 | Typo tolerance | ✅ | built in, no config |
 | Search-as-you-type / autocomplete | ✅ | full ranked search per keystroke; no separate suggest endpoint needed |
-| Stemming | 🟠 | prefix/compound matching built in; reverse inflection via one-way synonyms |
+| Stemming | 🟠 | prefix, suffix and compound matching built in; irregular forms (*mouse*/*mice*) via synonyms |
 | Compound-word decomposition | ✅ | no rules needed |
 | Synonyms, editor-editable | ✅ | web console tab, HTTP, C# |
 | Facets with counts, per-type counts | ✅ | `Facetable`; zero-count values drop from the response — keep them greyed in the UI |
@@ -368,7 +397,7 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 | Total hit count | 🟠 | no total on the result; facet counts give per-value totals, capped at `coverageDepth` (default 500, raise it per query or per dataset) |
 | Variant-level filtering | ✅ | array fields, any-element match |
 | Collapse variants to one card | 🟠 | model one document per work |
-| Real-time updates on publish | ✅ | dynamic operations, immediate |
+| Real-time updates on publish | ✅ | dynamic operations, immediate; or an Indx server webhook (Sanity and Contentful with no code) |
 | Zero-downtime full reload | ✅ | `replace` |
 | Scheduled campaign boosts | ✅ | boost rules with `activeFrom`/`activeUntil` |
 | Per-user personalisation | ✅ | per-user boost lists |
@@ -376,9 +405,11 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 | Bury / pin | ❌ | boosts lift only, and gently: High adds about 1 % of the score range |
 | Query redirects ("returns" → a page) | ❌ | handle in your front-end |
 | Semantic / vector / hybrid search | ✅ | bring your own embeddings |
+| Answers to questions in the search field | ✅ | Indx server: Search or ask, answers written from the dataset's records with citations; needs a model key. See [references/search-or-ask.md](references/search-or-ask.md) |
 | Related items / more-like-this | 🟠 | vector search on the item's embedding |
 | Spell-check "did you mean" | ❌ | not needed: the corrected match is returned directly |
-| Search analytics (null results, popular queries) | ✅ | Indx server: top queries, searches without an exact match, fuzzy finds, click-through, top documents, per search surface (`?source=`); a Statistics tab in the console. See [references/http-api.md](references/http-api.md#statistics-and-events). The C# library has a search counter only |
+| Category tree / hierarchy browser | ✅ | Indx server console: the Categories tab draws the catalogue's hierarchy from a path field or level fields, with counts and a step to boost a category; see Category hierarchies |
+| Search analytics (null results, popular queries) | ✅ | Indx server: top queries, searches without an exact match, fuzzy finds, click-through, top documents, when people search and in which languages (`?locale=`), per search surface (`?source=`); a Statistics tab in the console. See [references/http-api.md](references/http-api.md#statistics-and-events). The C# library has a search counter only |
 | Click and conversion events | ✅ | Indx server: `events/select` and `events/convert`, sent by your front-end with the search's `Indx-Query-Id`. Indx sets no cookies and sends no telemetry; you choose what to send, `subject` is optional, and one subject can be erased |
 | A/B testing of relevance | 🟠 | `Ranking` per query, or a second engine via `CreateInMemoryClone` |
 | Client timeout | ✅ | `TimeOutLimitMilliseconds` + `DidTimeOut`; abort the HTTP request for hard cancel |
