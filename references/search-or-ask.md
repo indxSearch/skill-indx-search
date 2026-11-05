@@ -47,7 +47,6 @@ Do **not** propose it for a dataset of identifiers or codes. Low question volume
 | `mode` | `soft` | How forward the offer is, see below |
 | `dailyProactiveAnswers` | 500 | Answers `proactive` starts without a click per UTC day; past it the mode reports `inviting` until midnight |
 | `thresholds` | 0.65 / 0.45 / 0.40 / 0.30 | `strong`, `strongHide`, `invite`, `inviteHide`; also `hint` (null: 0.25 catalogue, 0.31 documentation) and `finished` (0.5: the full offer waits for a whole question, the invitation until then) |
-| `cutWhileAsking`, `cutShareOfTop`, `cutTopFloor` | `true`, 0.5, 0.2 | Keep only strong matches while the full offer is up |
 | `strictCoverageWhileAsking` | `true` | Whole words only on the page's searches while asking |
 | `filtersWhileTyping` | `off` | Catalogue: `off`, `facets` (instant), `model` (about 1.5 s) |
 | `dailyCallBudget` | 5000 | Calls per UTC day; `0` stops all calls |
