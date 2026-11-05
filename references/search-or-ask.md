@@ -46,7 +46,7 @@ Do **not** propose it for a dataset of identifiers or codes. Low question volume
 | `answerLanguage` | visitor's | One language for every answer |
 | `mode` | `soft` | How forward the offer is, see below |
 | `dailyProactiveAnswers` | 500 | Answers `proactive` starts without a click per UTC day; past it the mode reports `inviting` until midnight |
-| `thresholds` | 0.65 / 0.45 / 0.40 / 0.30 | `strong`, `strongHide`, `invite`, `inviteHide`; also `hint` (null: 0.25 catalogue, 0.31 documentation) and `finished` (0.5: the full offer waits for a whole question, the invitation until then) |
+| `thresholds` | 0.65 / 0.45 / 0.40 / 0.30 | `strong`, `strongHide`, `invite`, `inviteHide`; also `hint` (null: 0.25 catalogue, 0.31 documentation) `finished` (0.5: the full offer waits for a whole question, the invitation until then) and `found` (0.3: under the full offer, dim the list when `found` is below it; 0 is off) |
 | `strictCoverageWhileAsking` | `true` | Whole words only on the page's searches while asking |
 | `filtersWhileTyping` | `off` | Catalogue: `off`, `facets` (instant), `model` (about 1.5 s) |
 | `dailyCallBudget` | 5000 | Calls per UTC day; `0` stops all calls |
@@ -105,7 +105,7 @@ function Search() {
 
 All under `/api/teams/{team}/datasets/{ds}/search-or-ask`, Search key:
 
-- `POST /intent { text }` on a **typing pause**, not every keystroke: `{ p, answerable, found, criteria, finished, offer: none|invite|strong, mode, reason?, … }`. `found`: whether what is asked about is in the results, answer or not; dim the list under a strong offer when it is low (null from the Decisions API). Follow the returned `mode`, not the one you read at load: `proactive` comes back `inviting` once the day's proactive answers are spent. `p` 0 with a `reason` when the judge is slow or failing; it never fails the call. Keep an offer up until `p` falls below the `…Hide` threshold.
+- `POST /intent { text }` on a **typing pause**, not every keystroke: `{ p, answerable, found, criteria, finished, offer: none|invite|strong, mode, reason?, … }`. `found`: whether what is asked about is in the results, answer or not; dim the list under a strong offer when it is below `thresholds.found` (null from the Decisions API: dim nothing). Follow the returned `mode`, not the one you read at load: `proactive` comes back `inviting` once the day's proactive answers are spent. `p` 0 with a `reason` when the judge is slow or failing; it never fails the call. Keep an offer up until `p` falls below the `…Hide` threshold.
 - `POST /ask { question, history? }` → server-sent events `status`, `sources` (`[{ n, documentKey, title }]`), `filters` (catalogue), `text` (`{ delta }`, markdown citing `[n]`), `done`, or `error` (`nothingFound`, `upstreamBusy`, `failed`). Header `Indx-Ask-Id`: send it as the `queryId` of a select when a cited source is opened. `history`: up to three `{ question, answer }` turns. Send `"proactive": true` when the page starts the answer itself; outside the `proactive` mode that answers `429`.
 - `POST /filters { text }` (catalogue, when `criteria` is strong): `{ filters: [{ field, value | min, max }], text, sort? }`.
 - Pass `?session=` (one id per page load), `?source=` and `?queryId=` as on searches.
