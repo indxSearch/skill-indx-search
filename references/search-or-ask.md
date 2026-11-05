@@ -44,17 +44,15 @@ Do **not** propose it for a dataset of identifiers or codes. Low question volume
 | `searches` | follows `answers` | Catalogue only: `several` (an agent that searches, sorts and filters) or `one` (one search, a summary). Unset: `best` several, `fast` one |
 | `answerInstructions` | none | Voice and house rules; cannot loosen grounding. 1,500 characters max |
 | `answerLanguage` | visitor's | One language for every answer |
-| `askPhrases` | English | `{ leadIns, frames, links, articles }`, see below |
 | `mode` | `soft` | How forward the offer is, see below |
 | `dailyProactiveAnswers` | 500 | Answers `proactive` starts without a click per UTC day; past it the mode reports `inviting` until midnight |
-| `refocusWhileTyping`, `inviteOnAskPhrase` | `true`, `true` | The second shows the invitation the moment an Ask phrase matches, before the judge; strict ignores it |
-| `thresholds` | 0.65 / 0.45 / 0.40 / 0.30 | `strong`, `strongHide`, `invite`, `inviteHide`; also `hint` (null: 0.25 catalogue, 0.31 documentation) and `finished` (0.5) |
+| `thresholds` | 0.65 / 0.45 / 0.40 / 0.30 | `strong`, `strongHide`, `invite`, `inviteHide`; also `hint` (null: 0.25 catalogue, 0.31 documentation) and `finished` (0.5: the full offer waits for a whole question, the invitation until then) |
 | `cutWhileAsking`, `cutShareOfTop`, `cutTopFloor` | `true`, 0.5, 0.2 | Keep only strong matches while the full offer is up |
 | `strictCoverageWhileAsking` | `true` | Whole words only on the page's searches while asking |
 | `filtersWhileTyping` | `off` | Catalogue: `off`, `facets` (instant), `model` (about 1.5 s) |
 | `dailyCallBudget` | 5000 | Calls per UTC day; `0` stops all calls |
 
-`GET` also returns `effective` (what it runs with after defaults, the Ask phrases in effect, `answerModel`, `searches`, and the offered `answerModels`) and `available` (the instance has a key).
+`GET` also returns `effective` (what it runs with after defaults, `answerModel`, `searches`, and the offered `answerModels`) and `available` (the instance has a key).
 
 ### Mode
 
@@ -68,12 +66,6 @@ Do **not** propose it for a dataset of identifiers or codes. Low question volume
 
 Recommend `soft` unless the user asks otherwise. `proactive` spends an answer per finished question nobody clicked for: suggest it for documentation with a budget to match, not for a catalogue. A page can choose its own mode (`useSearchOrAsk({ mode })`), such as `strict` on a checkout page; `proactive` applies only where the dataset is set to it.
 
-### Ask phrases
-
-While a question is typed, the list searches what it is about: "help me find the movie about the green ogre" searches `green ogre`. Groups, matched in order from the start: lead-ins ("help me find"), frames, i.e. what is asked for ("the movie"), links ("about", "with"), articles. Nothing is taken unless the start has a question's shape and a word of 3+ letters is left. A frame also comes off the end ("show me green ogre movie" → `green ogre`) when two words stand before it.
-
-For a catalogue, **add the records' own names as frames** ("the movie", "a film", "movie", "the product") and lead-ins in the site's language. A phrase belongs to one group. In the console they are edited under *Edit Ask phrases*, with *Try it*. With all four lists empty the English defaults apply; once any list has a phrase, the four are the dataset's own (an empty list then takes nothing of its kind).
-
 ### Catalogue fields
 
 The judge's filters and the agent work from **Filterable** fields. A text field becomes a filter only when it is also **Facetable** (its values come from the facets) and has at most 500 values; a filterable field with more (a director, a writer) is not a filter, but the agent reads it from every record found and searches its words. Make the fields questions are about Filterable, and Sortable where a question asks for an order ("the newest", "the largest").
@@ -86,7 +78,7 @@ The judge's filters and the agent work from **Filterable** fields. A text field 
 import { SearchProvider, SearchInput, SearchResults, AskPanel, useSearchOrAsk, useFilterSuggestion } from '@indxsearch/intrface';
 
 function Search() {
-  const sor = useSearchOrAsk();                         // settings, judge on pause, Ask phrases on the searches
+  const sor = useSearchOrAsk();                         // settings, judge on pause
   const suggestion = useFilterSuggestion({ auto: sor }); // a catalogue's filters on the list
   const [question, setQuestion] = useState<string | null>(null);
   const [proactive, setProactive] = useState(false);
@@ -114,8 +106,7 @@ function Search() {
 
 All under `/api/teams/{team}/datasets/{ds}/search-or-ask`, Search key:
 
-- `POST /intent { text }` on a **typing pause**, not every keystroke: `{ p, answerable, criteria, finished, offer: none|invite|strong, mode, searchText, reason?, … }`. Follow the returned `mode`, not the one you read at load: `proactive` comes back `inviting` once the day's proactive answers are spent. `p` 0 with a `reason` when the judge is slow or failing; it never fails the call. Keep an offer up until `p` falls below the `…Hide` threshold.
-- **Search `searchText`**, not the typed text, when refocus is on, and send the typed text as `?typed=` on that search so the statistics count the typing once.
+- `POST /intent { text }` on a **typing pause**, not every keystroke: `{ p, answerable, criteria, finished, offer: none|invite|strong, mode, reason?, … }`. Follow the returned `mode`, not the one you read at load: `proactive` comes back `inviting` once the day's proactive answers are spent. `p` 0 with a `reason` when the judge is slow or failing; it never fails the call. Keep an offer up until `p` falls below the `…Hide` threshold.
 - `POST /ask { question, history? }` → server-sent events `status`, `sources` (`[{ n, documentKey, title }]`), `filters` (catalogue), `text` (`{ delta }`, markdown citing `[n]`), `done`, or `error` (`nothingFound`, `upstreamBusy`, `failed`). Header `Indx-Ask-Id`: send it as the `queryId` of a select when a cited source is opened. `history`: up to three `{ question, answer }` turns. Send `"proactive": true` when the page starts the answer itself; outside the `proactive` mode that answers `429`.
 - `POST /filters { text }` (catalogue, when `criteria` is strong): `{ filters: [{ field, value | min, max }], text, sort? }`.
 - Pass `?session=` (one id per page load), `?source=` and `?queryId=` as on searches.
