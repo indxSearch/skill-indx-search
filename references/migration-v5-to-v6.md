@@ -72,7 +72,7 @@ moved to one of three parts, each never null.
 | `CoverageSetup.Fields[].Weight` | `Ranking.FieldWeights` (a dictionary by field name) |
 | `Query.FieldBoosts` | `Ranking.FieldBoosts` |
 | `Query.Boosts` + `EnableBoost`, `Query.Buries` + `EnableBury` | `Ranking.Boosts`, `Ranking.Buries` (a list not empty is on) |
-| `Query.EnableCoverageReport`, `Result.CoverageReport` | `Query.EnableRerankReport`, `Result.RerankReport` |
+| `Query.EnableCoverageReport`, `Result.CoverageReport` | `Query.EnableMatchReport`, `Result.MatchReport` |
 
 **Gone without a replacement** (fixed at the defaults they had): `CoverWholeWords`,
 `CoverPrefixSuffix`, `PrefixSuffixWhileTyping`, `CompoundRestFrom`, `WholeWordByLength`,
@@ -107,7 +107,7 @@ var q = new Query("melk", 20)
 | – | `Result.ToleranceCounts` (`Exact`, `OneEdit`, `TwoEdits`, `Rest`), cumulative; null in `Bm25f` |
 | – | `Result.CountedTolerance`: the rung the list was taken from |
 | – | `Result.IsFallback`: no document held every word; the list is the documents holding the most |
-| `Result.CoverageReport` | `Result.RerankReport` |
+| `Result.CoverageReport` | `Result.MatchReport` |
 
 A client that paged with `truncationIndex` ("load results 1–20 of N") reads `Count` for N. A
 client that showed "N hits" when the truncation index was set shows `Count`, and can split it by
@@ -189,7 +189,7 @@ The search body (`QueryProxy`) follows the library:
 - **`mode: "Coverage"` is refused** (`400`): write `EditDistance` (with `ranking.rerank` true, the
   default).
 - **The result:** `count`, `ranked`, `toleranceCounts`, `countedTolerance`, `isFallback`,
-  `rerankReport`; `truncationIndex`, `truncationScore` and `overflow` are gone.
+  `matchReport`; `truncationIndex`, `truncationScore` and `overflow` are gone.
 - **Fields:** `wordMatching`, `patternMatching` (+ `indexSizes`, `numberOfStartCharacters`,
   `numberOfStopCharacters`), `tolerance`, `rerankWeight` in a field's configuration
   (`PUT …/fields/configuration`). `searchable` from an older client is still read (true as
