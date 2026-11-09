@@ -74,19 +74,21 @@ The judge's filters and the agent work from **Filterable** fields. A text field 
 ## Front end with intrface (`@indxsearch/intrface` 4.0+, for the Indx 6 server)
 
 ```tsx
-import { SearchProvider, SearchInput, SearchResults, AskPanel, useSearchOrAsk, useFilterSuggestion } from '@indxsearch/intrface';
+import { SearchProvider, SearchInput, SearchResults, AskPanel, useSearchOrAsk, useFilterSuggestion, type AskPicks } from '@indxsearch/intrface';
 
 function Search() {
   const sor = useSearchOrAsk();                         // settings, judge on pause
   const suggestion = useFilterSuggestion({ auto: sor }); // a catalogue's filters on the list
   const [question, setQuestion] = useState<string | null>(null);
   const [proactive, setProactive] = useState(false);
+  const [picks, setPicks] = useState<AskPicks | null>(null);  // a catalogue answer's own list
   return (
     <>
       <SearchInput searchOrAsk={sor}
         onAsk={(text, how) => { setQuestion(text); setProactive(!!how?.proactive); }} />
-      {question && <AskPanel question={question} proactive={proactive} followUps onFilters={suggestion.apply} />}
-      <SearchResults fields={['title', 'description']} searchOrAsk={sor} />
+      {question && <AskPanel question={question} proactive={proactive} followUps onFilters={suggestion.apply} onPicks={setPicks} />}
+      <SearchResults fields={['title', 'description']} searchOrAsk={sor} picks={picks}
+        onShowSearch={() => { if (picks?.search) suggestion.apply(picks.search); setPicks(null); }} />
     </>
   );
 }
@@ -97,6 +99,7 @@ function Search() {
 - `AskPanel fill` takes its container's height (a panel beside the results); `SearchInput askOffer="below"` puts the offer under the field.
 - `SearchInput` follows the dataset's mode; in `proactive` it calls `onAsk(text, { proactive: true })` on its own. Pass `proactive` on to `AskPanel` so the statistics count those answers apart.
 - `QuickAnswer` draws the offer as a row above the results (the hint, the full offer, or proactive's "Thinking"). Give `SearchInput` `askOffer="none"` beside it, so the offer shows once.
+- On a catalogue with several searches, `AskPanel onPicks` hands over the records the answer chose (each with `why`); pass them to `SearchResults picks={picks}` (with `onShowSearch`) and they are the list while the conversation is open. Clear them when the visitor types. Keep `picks` in state beside `question` (`useState<AskPicks | null>`).
 - `SearchResults searchOrAsk={sor}` never cuts the list; it dims it, with a line above, when the judge reads what is asked about as not in it (`sor.notFound`).
 - While asking is held (`sor.held`: the day's budget spent, or the provider refusing answers, reason `paused`) nothing is offered in any mode and Enter searches. `AskPanel` shows nothing for a refused proactive start, and "No more answers today" for a spent budget.
 - **Use a Search key in the browser.** Never a Read or Full key.
@@ -108,7 +111,7 @@ function Search() {
 All under `/api/teams/{team}/datasets/{ds}/search-or-ask`, Search key:
 
 - `POST /intent { text }` on a **typing pause**, not every keystroke: `{ p, answerable, found, criteria, finished, offer: none|invite|strong, mode, reason?, … }`. `found`: whether what is asked about is in the results, answer or not; dim the list under a strong offer when it is below `thresholds.found` (null from the Decisions API: dim nothing). Follow the returned `mode`, not the one you read at load: `proactive` comes back `inviting` once the day's proactive answers are spent. `p` 0 with a `reason` when the judge is slow or failing; it never fails the call. Reason `paused`: the provider refuses answers, so offer nothing at all, not even open's Ask button, until a judgement comes back without it. Keep an offer up until `p` falls below the `…Hide` threshold.
-- `POST /ask { question, history? }` → server-sent events `status`, `sources` (`[{ n, documentKey, title }]`), `filters` (catalogue), `text` (`{ delta }`, markdown citing `[n]`), `done`, or `error` (`nothingFound`, `upstreamBusy`, `failed`). Header `Indx-Ask-Id`: send it as the `queryId` of a select when a cited source is opened. `history`: up to three `{ question, answer }` turns. Send `"proactive": true` when the page starts the answer itself; outside the `proactive` mode, or past the day's proactive answers, that answers `429 searchOrAskBudgetSpent`: show nothing, nobody asked.
+- `POST /ask { question, history? }` → server-sent events `status`, `sources` (`[{ n, documentKey, title }]`), `filters` (catalogue, one search), `picks` (catalogue, several searches: `{ picks: [{ n, documentKey, title, why }], search }`, the records the answer chose; list them as the page's results while the conversation is open), `text` (`{ delta }`, markdown citing `[n]`), `done`, or `error` (`nothingFound`, `upstreamBusy`, `failed`). Header `Indx-Ask-Id`: send it as the `queryId` of a select when a cited source is opened. `history`: up to three `{ question, answer, shown }` turns, `shown` being what the turn put on the page (`{ filters, text, sort }` or `{ picks: [{ documentKey, title }] }`). Send `"proactive": true` when the page starts the answer itself; outside the `proactive` mode, or past the day's proactive answers, that answers `429 searchOrAskBudgetSpent`: show nothing, nobody asked.
 - `POST /filters { text }` (catalogue, when `criteria` is strong): `{ filters: [{ field, value | min, max }], text, sort? }`.
 - Pass `?session=` (one id per page load), `?source=` and `?queryId=` as on searches.
 
