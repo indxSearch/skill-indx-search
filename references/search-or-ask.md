@@ -20,7 +20,7 @@ Do **not** propose it for a dataset of identifiers or codes. Low question volume
 ## Turn it on: three switches
 
 1. **Instance:** model keys, one per provider. Console *Admin > Settings > Experimental* (show Search or ask, the keys), or `Indx:SearchOrAsk:Keys:OpenRouter` / `Keys:OpenAi` / `Keys:Anthropic` / `Keys:TypeSafe` (the older `Indx:SearchOrAsk:ApiKey` still works). The judge and the answers each name a provider and use its key. One OpenRouter key serves both; so does one OpenAI key (OpenAI answers plus the Decisions API as judge, with EU data residency and an Ultrafast answer speed). Anthropic or any OpenAI-compatible endpoint can serve the answers. Without a key the routes answer `409 searchOrAskUnavailable`.
-2. **Dataset shown:** a team admin, the dataset's Options tab, or `PUT …/search-or-ask/shown { "shown": true }`. Until then every route answers `404`.
+2. **Dataset shown:** a team admin, the dataset's Options tab, or `PUT …/search-or-ask/shown { "shown": true }`. Until then `intent`, `filters` and `ask` answer `404`, and `GET` says `available: false`.
 3. **Dataset enabled:** an editor, `"enabled": true` in the settings (`PUT …/search-or-ask`, Full key). Off: `409 searchOrAskDisabled`.
 
 **Tell the user** that typed text then goes to the model providers, and their privacy notice must say so.
@@ -46,12 +46,12 @@ Do **not** propose it for a dataset of identifiers or codes. Low question volume
 | `answerLanguage` | visitor's | One language for every answer |
 | `mode` | `soft` | How forward the offer is, see below |
 | `dailyProactiveAnswers` | 500 | Answers `proactive` starts without a click per UTC day; past it the mode reports `inviting` until midnight |
-| `thresholds` | 0.65 / 0.45 / 0.40 / 0.30 | `strong`, `strongHide`, `invite`, `inviteHide`; also `hint` (null: 0.25 catalogue, 0.31 documentation) `finished` (0.5: the full offer waits for a whole question, the invitation until then) and `found` (0.3: under the full offer, dim the list when `found` is below it; 0 is off) |
+| `thresholds` | 0.65 / 0.45 / 0.40 / 0.30 | `strong`, `strongHide`, `invite`, `inviteHide`; also `hint` (null: the judge's own, Jev 0.25 catalogue / 0.31 documentation, the Decisions API 0.05) `finished` (0.5: the full offer waits for a whole question, the invitation until then) and `found` (0.3: under the full offer, dim the list when `found` is below it; 0 is off) |
 | `strictCoverageWhileAsking` | `true` | Whole words only on the page's searches while asking |
 | `filtersWhileTyping` | `off` | Catalogue: `off`, `facets` (instant), `model` (about 1.5 s) |
 | `dailyCallBudget` | 5000 | Calls per UTC day; `0` stops all calls |
 
-`GET` also returns `effective` (what it runs with after defaults, `answerModel`, `searches`, and the offered `answerModels`) and `available` (the instance has a key).
+`GET` also returns `effective` (what it runs with after defaults, `answerModel`, `searches`, and the offered `answerModels`) and `available` (the instance has a key and the dataset shows it).
 
 ### Mode
 
@@ -60,7 +60,7 @@ Do **not** propose it for a dataset of identifiers or codes. Low question volume
 | `strict` | Only the full offer, once the judge is sure. Where a wrong offer costs more than a missed one |
 | `soft` (default) | The quiet invitation early, the full offer once sure |
 | `open` | An Ask button whenever something is typed; Enter asks whatever the judge says |
-| `inviting` | Open, plus "For a quick answer, type a bit more" from `thresholds.hint` up. Teaches visitors the field answers |
+| `inviting` | Open, plus "For a quick answer, type a bit more" from `thresholds.hint` up, and on a sentence (three words, or a `?`) before the judge has read it. Teaches visitors the field answers |
 | `proactive` | Inviting, and the answer starts on its own once the offer is strong, `finished` passes its threshold and the visitor has been still a second |
 
 Recommend `soft` unless the user asks otherwise. `proactive` spends an answer per finished question nobody clicked for: suggest it for documentation with a budget to match, not for a catalogue. A page can choose its own mode (`useSearchOrAsk({ mode })`), such as `strict` on a checkout page; `proactive` applies only where the dataset is set to it.
@@ -71,7 +71,7 @@ The judge's filters and the agent work from **Filterable** fields. A text field 
 
 ---
 
-## Front end with intrface (`@indxsearch/intrface` 3.13+; the modes and `QuickAnswer` 3.15+)
+## Front end with intrface (`@indxsearch/intrface` 4.0+, for the Indx 6 server)
 
 ```tsx
 import { SearchProvider, SearchInput, SearchResults, AskPanel, useSearchOrAsk, useFilterSuggestion } from '@indxsearch/intrface';
@@ -97,6 +97,8 @@ function Search() {
 - `AskPanel fill` takes its container's height (a panel beside the results); `SearchInput askOffer="below"` puts the offer under the field.
 - `SearchInput` follows the dataset's mode; in `proactive` it calls `onAsk(text, { proactive: true })` on its own. Pass `proactive` on to `AskPanel` so the statistics count those answers apart.
 - `QuickAnswer` draws the offer as a row above the results (the hint, the full offer, or proactive's "Thinking"). Give `SearchInput` `askOffer="none"` beside it, so the offer shows once.
+- `SearchResults searchOrAsk={sor}` never cuts the list; it dims it, with a line above, when the judge reads what is asked about as not in it (`sor.notFound`).
+- While asking is held (`sor.held`: the day's budget spent, or the provider refusing answers, reason `paused`) nothing is offered in any mode and Enter searches. `AskPanel` shows nothing for a refused proactive start, and "No more answers today" for a spent budget.
 - **Use a Search key in the browser.** Never a Read or Full key.
 
 ---
@@ -105,12 +107,12 @@ function Search() {
 
 All under `/api/teams/{team}/datasets/{ds}/search-or-ask`, Search key:
 
-- `POST /intent { text }` on a **typing pause**, not every keystroke: `{ p, answerable, found, criteria, finished, offer: none|invite|strong, mode, reason?, … }`. `found`: whether what is asked about is in the results, answer or not; dim the list under a strong offer when it is below `thresholds.found` (null from the Decisions API: dim nothing). Follow the returned `mode`, not the one you read at load: `proactive` comes back `inviting` once the day's proactive answers are spent. `p` 0 with a `reason` when the judge is slow or failing; it never fails the call. Keep an offer up until `p` falls below the `…Hide` threshold.
-- `POST /ask { question, history? }` → server-sent events `status`, `sources` (`[{ n, documentKey, title }]`), `filters` (catalogue), `text` (`{ delta }`, markdown citing `[n]`), `done`, or `error` (`nothingFound`, `upstreamBusy`, `failed`). Header `Indx-Ask-Id`: send it as the `queryId` of a select when a cited source is opened. `history`: up to three `{ question, answer }` turns. Send `"proactive": true` when the page starts the answer itself; outside the `proactive` mode that answers `429`.
+- `POST /intent { text }` on a **typing pause**, not every keystroke: `{ p, answerable, found, criteria, finished, offer: none|invite|strong, mode, reason?, … }`. `found`: whether what is asked about is in the results, answer or not; dim the list under a strong offer when it is below `thresholds.found` (null from the Decisions API: dim nothing). Follow the returned `mode`, not the one you read at load: `proactive` comes back `inviting` once the day's proactive answers are spent. `p` 0 with a `reason` when the judge is slow or failing; it never fails the call. Reason `paused`: the provider refuses answers, so offer nothing at all, not even open's Ask button, until a judgement comes back without it. Keep an offer up until `p` falls below the `…Hide` threshold.
+- `POST /ask { question, history? }` → server-sent events `status`, `sources` (`[{ n, documentKey, title }]`), `filters` (catalogue), `text` (`{ delta }`, markdown citing `[n]`), `done`, or `error` (`nothingFound`, `upstreamBusy`, `failed`). Header `Indx-Ask-Id`: send it as the `queryId` of a select when a cited source is opened. `history`: up to three `{ question, answer }` turns. Send `"proactive": true` when the page starts the answer itself; outside the `proactive` mode, or past the day's proactive answers, that answers `429 searchOrAskBudgetSpent`: show nothing, nobody asked.
 - `POST /filters { text }` (catalogue, when `criteria` is strong): `{ filters: [{ field, value | min, max }], text, sort? }`.
 - Pass `?session=` (one id per page load), `?source=` and `?queryId=` as on searches.
 
-Limits: text 1 to 300 characters, question 1 to 1,000. `429` with `Retry-After` over the per-address limit or the daily budget (`searchOrAskBudgetSpent`, resets at midnight UTC).
+Limits: text 1 to 300 characters, question 1 to 1,000. `429` with `Retry-After` over the per-address limit or the daily budget (`searchOrAskBudgetSpent`, resets at midnight UTC: offer nothing until then). Show a visitor your own words for a `409`; the problem's `detail` is written for the owner.
 
 ---
 

@@ -291,7 +291,11 @@ Upgrade both to 4.0 together; they need a v6 server.
   `setSearchSettings({ match: undefined })` hands a part back to the dataset.
 - **The state's `truncationIndex` is `countedTotal`** (the result's `count`), with `isFallback`.
 - **Search or ask:** the Ask phrases are gone; `stripAskPhrases` and the `AskPhrases` type are no
-  longer exported.
+  longer exported. The list under an offer is no longer cut to the strong matches: `cutResults`,
+  `cutRule`, `visibleResults`, `DEFAULT_CUT`, `CutRule` and `SCORE_SCALE` are gone, and
+  `SearchResults` dims the list instead when the judge reads the answer as not in it (`notFound`).
+  `held` says asking is held (the day's budget spent, the provider refusing answers), when nothing
+  is offered in any mode. `SearchOrAskMode` and `pageMode` are exported.
 - **indx-types:** `QueryProxy`, `MatchSetup`, `CandidateSetup`, `RankingProxy`, `Result` and
   `FieldProxy` as the server has them, `CombinedFilterProxy` with `filters`, and string enums
   (`SearchMode`, `Tolerance`, `Rungs`, `IndexTerms`, `BoostStrength` with `Med` where it had
