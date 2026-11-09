@@ -1,6 +1,6 @@
 # skill-indx-search
 
-> Targets IndxSearchLib v5.0.2 and Indx v2.0 (beta).
+> Targets Indx 6: IndxSearchLib 6.0 and the Indx server 2.0 beta 4 and later. Moving from Indx 5? See the [migration guide](references/migration-v5-to-v6.md).
 > AI agents can sometimes produce incorrect code. Always verify generated output against the [official documentation](https://docs.indx.co).
 
 Everything your AI coding agent needs to understand, install, and integrate [Indx Search](https://indx.co) in your project.
@@ -16,9 +16,10 @@ Or browse on [skills.sh](https://skills.sh/indxsearch/skill-indx-search/indx-sea
 ## What your agent learns
 
 - Choose between the C# NuGet library and the HTTP API
-- Configure fields, queries, filters, boosts, and coverage tuning
+- Configure fields (word and pattern matching), queries (match, candidates, ranking), filters, boosts and buries
 - Write working code in C#, Node.js/TypeScript, or plain REST
 - Load data and deploy to production
+- Upgrade a project from Indx 5 to Indx 6
 
 ## Resources
 

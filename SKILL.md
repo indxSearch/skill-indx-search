@@ -1,29 +1,30 @@
 ---
 name: indx-search
-description: Indx Search integration skill for AI coding agents. Use when building or evaluating search with Indx — a high-performance, typo-tolerant search engine that matches at the character-pattern level instead of relying on tokenizers or per-language stemmers. Covers C# NuGet (IndxSearchLib) and HTTP API (Indx) integration, a built-in MCP server, field configuration and weighting, search-as-you-type, filters and facets, boost rules (incl. scheduled campaigns and per-user personalisation), synonyms, vector and hybrid search, Search or ask (questions answered from your own records, in the same search field), real-time document updates, zero-downtime reindexing, server-side (SSR) usage, and search UX patterns.
+description: Indx Search integration skill for AI coding agents, for Indx 6 (IndxSearchLib 6.0, Indx server 2.0 beta 4 and later). Use when building or evaluating search with Indx, a high-performance, typo-tolerant search engine that counts what it finds: each query word is matched exactly, then within one or two edits, and fields can also be matched inside their words, with no tokenizers or per-language stemmers to configure. Covers C# NuGet (IndxSearchLib) and HTTP API (Indx) integration, a built-in MCP server, field configuration and weighting, search-as-you-type, filters and facets, boost rules (incl. scheduled campaigns and per-user personalisation), synonyms, vector and hybrid search, Search or ask (questions answered from your own records, in the same search field), real-time document updates, zero-downtime reindexing, server-side (SSR) usage, and search UX patterns.
 ---
 
 # Indx Search — Agent Skill
 
-Indx is a high-performance search engine for structured and unstructured text. It matches at the character-pattern level rather than through tokenizers and per-language stemmers, so typos, inflections, compound words and messy input are handled without language configuration. See [Language handling](#language-handling) for exactly what that covers and where synonyms come in.
+Indx is a high-performance search engine for structured and unstructured text. A search looks each query word up exactly, then within one edit, then two, and counts the records that hold every word; fields can also be matched inside their words by pattern. Typos, inflections by beginning, compound words and messy input are handled without language configuration. See [Language handling](#language-handling) for exactly what that covers and where synonyms come in.
 
-If you are **evaluating** Indx against a feature list, read [Capability summary](#capability-summary) first — it answers the usual comparison questions directly.
+If you are **evaluating** Indx against a feature list, read [Capability summary](#capability-summary) first. It answers the usual comparison questions directly.
 
-## Versions & Compatibility — read first
+## Versions & Compatibility: read first
 
-This skill targets **Indx v5**: IndxSearchLib **5.x** (.NET 10) and Indx **v2** (team-scoped HTTP API, token-only auth). Everything below assumes v5.
+This skill targets **Indx 6**: IndxSearchLib **6.0** (.NET 10), the Indx server **2.0 beta 4** and later (team-scoped HTTP API, OpenAPI document `v2.0-beta`, token-only auth), and `@indxsearch/intrface` and `indx-types` **4.0**. Everything below assumes Indx 6.
 
-**Before giving any integration guidance, establish which version the user is on.** v4 and v5 differ in ways that silently break copy-pasted code — handing a v4 user v5 routes is a common, confusing failure. Detection signals:
+**Before giving any integration guidance, establish which version the user is on.** The versions differ in ways that silently break copy-pasted code: v6 query settings sent to a v5 server are ignored, and v5 code does not compile against IndxSearchLib 6.0. Detection signals:
 
-| Signal | v4 (legacy) | v5 (this skill) |
-|--------|-------------|-----------------|
-| C# `IndxSearchLib` NuGet | `4.x` (older .NET target) | `5.x`, .NET 10 |
-| HTTP route shape | flat — `/api/Search/{dataset}` | team-scoped — `/api/teams/{team}/datasets/{dataset}/search` |
-| List-datasets endpoint | `/api/GetUserDatasets` → `string[]` | `/api/me/datasets` → objects with `teamName` + `role` |
-| Teams | none — datasets owned by the user | datasets owned by **teams**; every endpoint is team-scoped |
-| Auth | API password login (`/api/Login`) available | **token-only** — portal-issued JWT, no login API |
+| Signal | v4 (legacy) | v5 | v6 (this skill) |
+|--------|-------------|----|-----------------|
+| C# `IndxSearchLib` NuGet | `4.x` (older .NET target) | `5.0.x` | `6.0` |
+| C# query | `Query.EnableCoverage` | `Query.EnableCoverage`, `Query.CoverageSetup` | `Query.Match`, `Query.Candidates`, `Query.Ranking` |
+| C# field roles | `Searchable` | `Searchable` | `WordMatching`, `PatternMatching` |
+| HTTP route shape | flat: `/api/Search/{dataset}` | team-scoped: `/api/teams/{team}/datasets/{dataset}/search` | as v5 |
+| HTTP search result | `truncationIndex` | `truncationIndex`, enums as numbers | `count`, `toleranceCounts`, enums by name |
+| Auth | API password login (`/api/Login`) available | **token-only**: portal-issued JWT, no login API | as v5 |
 
-If the user is on **v5** and moving to **v6** (the query in three parts, `Query.Mode` with `Ranking.Rerank`, `Result.Count`), see [references/migration-v5-to-v6.md](references/migration-v5-to-v6.md). If the user is on **v5**, proceed normally. If on **v4**, do **not** hand them v5 routes/APIs — either answer for their v4 setup, or (recommended) help them upgrade: see [references/migration-v4-to-v5.md](references/migration-v4-to-v5.md). When the version is ambiguous, ask one quick question (NuGet version, or whether their API URLs contain `/teams/`) before proceeding.
+If the user is on **v6**, proceed normally. If on **v5**: either answer for their v5 setup (do not hand them v6 names), or help them upgrade with [references/migration-v5-to-v6.md](references/migration-v5-to-v6.md). If on **v4**, do **not** hand them v5 or v6 routes: answer for v4, or help them upgrade with [references/migration-v4-to-v5.md](references/migration-v4-to-v5.md) first. When the version is ambiguous, ask one quick question (the NuGet version, or whether a search result has `count` or `truncationIndex`) before proceeding.
 
 ## When to Use Indx
 
@@ -39,7 +40,7 @@ If the user is on **v5** and moving to **v6** (the query in three parts, `Query.
 
 ## Choosing Your Integration Path
 
-**C# / .NET project** → Use the [IndxSearchLib NuGet package](https://www.nuget.org/packages/IndxSearchLib/) directly (.NET 10, v5.0.2). Embed search into your application with no external dependencies. See [references/csharp.md](references/csharp.md) for full API reference.
+**C# / .NET project** → Use the [IndxSearchLib NuGet package](https://www.nuget.org/packages/IndxSearchLib/) directly (.NET 10, 6.0; a preview needs `--prerelease`). Embed search into your application with no external dependencies. See [references/csharp.md](references/csharp.md) for full API reference.
 
 **Any other tech stack** (Node.js, Python, Java, etc.) → Deploy the [Indx](https://github.com/indxSearch/Indx) HTTP API server and interact via REST (.NET 10). Recommended deployment target: Azure App Service. See [references/cloudapi-setup.md](references/cloudapi-setup.md) for setup and deployment, and [references/http-api.md](references/http-api.md) for endpoints, schemas, and data loading.
 
@@ -55,7 +56,7 @@ Tools:
 - **`describe_dataset(team, dataset)`** — configured fields with capabilities, plus **value hints** (distinct values for facetable fields, numeric ranges), an owner description, and a sample document. Call first so the agent filters with real values.
 - **`search(team, dataset, query, filters?, limit?, fields?, broaden?, facets?)`** — ranked hits with scores. Declarative AND filters (`{field, value}` or `{field, min, max}`). **Precise by default** (`candidates.fallback=false`) so an empty result is a trustworthy no-match; pass `broaden: true` for fuzzy recall (`candidates.rest` and `candidates.fallback` on: pattern matches below the near-exact hits, and in their place when there are none). The result's `total` is the number of matches, `count` the hits returned.
 - **`get_document(team, dataset, key)`** — full JSON for a key.
-- **`get_synonyms(team, dataset)`** — the dataset's synonym list (an empty `entries` array when it has none). Explains why a search matched more than its literal words (queries expand through the list before scoring).
+- **`get_synonyms(team, dataset)`** — the dataset's synonym list (an empty `entries` array when it has none). Explains why a search matched more than its literal words (a query word is also met through its entry's terms).
 
 For inspecting a dataset rather than querying one:
 
@@ -81,41 +82,43 @@ Typical flow: `describe_dataset` → `search` (text + filters) → `get_document
 
 ## Core Concepts
 
-### Two-Step Search Model
+### How a search works
 
-Every search executes in two phases:
+A search has two choices: how records are fetched (`Mode`) and whether they are reranked (`Ranking.Rerank`).
 
-1. **Pattern Matching** — Scans all documents for textual and structural patterns. Produces candidate results with strong recall and built-in typo tolerance. No query preprocessing needed.
+1. **Fetch.** In `SearchMode.EditDistance`, the default, each query word is looked up in the word lookup: exactly, then within one edit, then two (each a **rung**). The first rung on which records hold **every** query word is the result: those records are counted (`Result.Count`, by rung in `Result.ToleranceCounts`), faceted and listed alike. Nothing is cut from that list and nothing that misses a word is mixed in. `SearchMode.Bm25f` instead ranks every record by BM25F relevance and counts nothing.
+2. **Rerank.** The reranker (called Coverage before v6) orders the records inside each rung by how well they cover the query: whole words, words typed together or apart, the whole query as a phrase, field weights. On by default; scores run 0 to 65 535.
 
-2. **Coverage** (enabled by default) — A collection of algorithms that detect exact and near-exact token matches (whole words, fuzzy words, joined/split words, prefixes/suffixes) in the top-K candidates (default: 500). Confirmed matches are scored 0–65535 and promoted above pure pattern matches. A truncation index marks where coverage-confirmed results end.
+When no record holds every word, the list is the **fallback** (`Result.IsFallback`): the records holding the most of the words, then pattern matches. A search can say no instead (`Candidates.Fallback = false`).
 
 ### Field Configuration
 
-Fields must be explicitly marked with their roles before indexing:
+Fields must be explicitly marked with their roles before indexing. **A field configuration made with `Init` searches nothing until a field has `WordMatching` or `PatternMatching`.**
 
 | Role | Purpose | Notes |
 |------|---------|-------|
-| **Searchable** | Included in matching and scoring | At least one required. Supports weight for relative importance |
+| **WordMatching** | Matched by its whole words: exactly and within the edits its `Tolerance` allows. Its words are in the word lookup, so it is **counted** | At least one searched field needs it for a search to narrow. Right for names, titles, codes, tags |
+| **PatternMatching** | Matched inside its words, so a query finds it by part of a word (`PatternMatchingSetup`) | Alone it only orders records, it cannot narrow them. Add it to titles, names typed in part and descriptions |
 | **Filterable** | Available for filter operations | The field's **type** decides the kind: value filters on non-numeric fields, range filters on numeric ones |
-| **Facetable** | Used for aggregations | Returns value counts (histograms) |
+| **Facetable** | Used for aggregations | Value counts over everything the search counted |
 | **Sortable** | Enables result ordering | Works on numbers and strings. See sorting behavior below |
-| **Embeddable** | Field carries a vector for semantic search | See [Vector and hybrid search](#vector-and-hybrid-search) |
+| **Embeddable** | Field carries a vector for semantic search | No other role. See [Vector and hybrid search](#vector-and-hybrid-search) |
 
-**PatternMatching** — how a searchable field is matched inside its words. Off, the default since 5.1, the field is matched by whole words only: exactly, within the edits Coverage allows, and by prefix and affix - right for codes, identifiers and tags. On (`PatternMatchingSetup.Default`, or a setup with its own `IndexSizes` and start and stop characters), a query also finds the field by any part of a word - right for titles, names typed in part and descriptions. Every searchable field has its words in the word lookup either way.
-- C# API: `field.PatternMatching = PatternMatchingSetup.Default;`
-- HTTP API: `{ "fieldName": "title", "searchable": true, "patternMatching": true }`
+**The usual searched field has both:** `WordMatching = true` and `PatternMatching = PatternMatchingSetup.Default` (pattern sizes `[3]`, two start characters). That is how every searchable field was matched in v5. `WordMatching` alone suits codes and identifiers; `new PatternMatchingSetup([2, 3])` matches short values (tags, codes) by two characters.
+- C# API: `new FieldProxy { FieldName = "title", WordMatching = true, PatternMatching = true, Weight = 2.0f }` (on a `FieldProxy`, `PatternMatching` is on or off; on takes `PatternMatchingSetup.Default` unless `IndexSizes` and the start and stop characters say otherwise). On a `Field`: `field.WordMatching = true; field.PatternMatching = PatternMatchingSetup.Default;`
+- HTTP API: `{ "fieldName": "title", "wordMatching": true, "patternMatching": true, "weight": 2.0 }`. Never send `searchable`: a v6 server reads it as `wordMatching` alone, so the field loses pattern matching.
 
-**Weight** — Searchable fields have a `float` weight (default 1.25) to control importance. Higher = more influence on BM25 scoring. Typical range 0.5–3.0.
-- C# API: `new FieldProxy { FieldName = "title", Searchable = true, Weight = 2.0f }`
-- HTTP API: `{ "fieldName": "title", "searchable": true, "weight": 2.0 }`
+Per searched field, all optional: `Tolerance` (`Exact`, `OneEdit` the default, `TwoEdits`, `ThreeEdits`; the most edits the field allows), `RerankWeight` (its weight in the reranker; 0 leaves it out of reranking and the word lookup), `TypingPrefixFrom` and `CaseSensitive`. Over HTTP the Indx server also has **field profiles** (`GET/PUT …/fields/profiles`): five built-in sets of these values (title, name, category, code, text) and the dataset's own, which the console applies to a field in one step.
 
-Note: Weights affect pattern recognition directly. A short text pattern in a longer string will not necessarily rank higher than the same pattern in a shorter string, even if the longer field has higher weight.
+**Weight**: a searched field's `float` weight (default 1.0) controls its importance in BM25F. Typical range 0.5 to 3.0.
 
-**Per-query field boosts** — adjust field importance for one search without reconfiguring: `query.Ranking.FieldBoosts = { ["title"] = 2.0f }` in C#, `"ranking": { "fieldBoosts": { "title": 2.0 } }` in the HTTP `search` body. Use this for "title matches first" ranking, or to A/B two weightings from the same index. Three rules:
+Note: Weights affect BM25F scoring directly. A short text pattern in a longer string will not necessarily rank higher than the same pattern in a shorter string, even if the longer field has higher weight.
 
-- A boost **multiplies** the field's configured `weight`, it does not replace it — `weight: 3.0` with a boost of `3.0` counts 9×. Leave a field out to keep its weight.
-- **Every key must be a searchable field.** A key that is not — unknown, or a field that was made non-searchable later — empties the whole search: HTTP answers `200` with no records and a `reason` naming the field, C# an empty `Result` with `Reason` set. Read `reason` before rendering "no matches". When searches that sent field boosts start returning nothing, compare the keys with `GET fields/configuration` before anything else, and remove a field from boosts when you remove `searchable` from it.
-- Boosts always apply: every dataset on the server scores in **BM25F mode** with one k1, and a changed `bM25k1` in `PUT fields/configuration` is refused.
+**Per-query field boosts**: adjust field importance for one search without reconfiguring: `query.Ranking.FieldBoosts = { ["title"] = 2.0f }` in C#, `"ranking": { "fieldBoosts": { "title": 2.0 } }` in the HTTP `search` body. Use this for "title matches first" ranking, or to A/B two weightings from the same index. Three rules:
+
+- A boost **multiplies** the field's configured `weight`, it does not replace it: `weight: 3.0` with a boost of `3.0` counts 9×. Leave a field out to keep its weight.
+- **Every key must be a searched field.** A key that is not (unknown, or a field no longer searched) empties the whole search: HTTP answers `200` with no records and a `reason` naming the field, C# an empty `Result` with `Reason` set. Read `reason` before rendering "no matches". When searches that sent field boosts start returning nothing, compare the keys with `GET fields/configuration` before anything else, and remove a field from boosts when you stop searching it.
+- The scoring mode is the engine's choice (`ScoringSetup`): BM25F, the default, with one k1 for every field, or BM25PerField. On an Indx server every dataset scores with BM25F, and a changed `bM25k1` in `PUT fields/configuration` is refused.
 
 ### Category hierarchies
 
@@ -132,7 +135,10 @@ values must.
 
 ### Filters Must Be Server-Side
 
-Never filter results client-side after a search. The search only returns a limited number of results (`maxNumberOfRecordsToReturn`), so client-side filtering on that subset will miss documents. Always create filters server-side (`CreateValueFilter` / `CreateRangeFilter` / `CombineFilters` in C#; `POST filters/value` / `filters/range` / `filters/combine` over HTTP) and pass the filter in the query (`query.Filter` in C#, `QueryProxy.filter` in HTTP) so the server applies the filter during search.
+Never filter results client-side after a search. The search only returns a limited number of results (`maxNumberOfRecordsToReturn`), so client-side filtering on that subset will miss documents. Always create filters server-side and pass the filter in the query (`query.Filter` in C#, `QueryProxy.filter` in HTTP) so the engine applies it during search:
+
+- **One expression** for the whole condition: `brand IN ["nike", "puma"] AND price BETWEEN 100 AND 2000 AND NOT category = "outlet"`. C# `CreateFilter(expression, out errors)`; HTTP `POST filters/expression`, or `filterExpression` (with `filterParameters`) in the search body. The easiest way to build a facet panel's filter.
+- **Or piece by piece:** `CreateValueFilter`, `CreateRangeFilter`, `CreateInFilter` (one of a set of values, far faster than an OR of value filters), `CreatePositionFilter` (within a distance), `CreateDateFilter`, combined with `Filter.And` / `Filter.Or` / `&` `|` `!` in C#; `POST filters/value`, `filters/range`, `filters/in`, `filters/position`, `filters/combine` (a list) and `filters/not` over HTTP.
 
 **Pick the kind by the field's type.** A range filter needs a field whose values are numbers; a value filter needs a field whose values are not. The other way round is refused — `null` with the reason in `error` in C#, `400` naming the alternative over HTTP. To match **one** value on a numeric field, use a range with **equal limits** (`CreateRangeFilter("item_id", id, id, out _)`, or `{"lowerLimit": 129, "upperLimit": 129}`): it compares as numbers and reads the field's posting index, where a value filter compares text and would miss `129.0`. A number stored as a JSON *string* is a text field, so it is the reverse — value filter yes, range filter no, and the fix is to store the values as numbers and load again.
 
@@ -140,59 +146,59 @@ Saved **boost rules** are the exception: their `{field, value}` condition is acc
 
 ### Search Behavior Guidance
 
-- **Keep coverage enabled** (the default). This is the recommended setting for nearly all use cases — both human-facing and programmatic. Only disable coverage in edge cases where you search a single field and only care about top-K fuzzy matches (e.g. name lookup). With coverage disabled nothing is counted, and results degrade when searching across multiple fields (title + description + category, etc.).
-- **Agent/tool usage**: Keep coverage on and set `Candidates.Fallback = false` (`candidates.fallback` in HTTP). This returns only documents holding every query word (exactly or within the tolerance's edits), filtering out loose pattern hits.
-- **Empty search**: Supported with empty/null query text. Requires facets enabled and at least one facetable field. Returns all documents, ignores the candidate bound. **Without `enableFacets` the empty query is refused, not empty**: `200`, no records, and `reason` set to `Search called with empty string and EnableFacets=false`. A browse page that omits the flag therefore renders an empty catalogue with no error — read `reason` before rendering.
+- **Keep the defaults** (`EditDistance`, reranked). This is the right setting for nearly all use cases, human-facing and programmatic: it counts, so the count, the facets and the list agree. Use `Mode = Bm25f` only for relevance ranking without a count, such as long natural-language queries over documents.
+- **Agent/tool usage**: set `Candidates.Fallback = false` (`candidates.fallback` in HTTP). A search then returns only records holding every query word (exactly or within the tolerance's edits), and an empty result is a trustworthy no-match.
+- **Search-as-you-type**: the word being typed is matched as the start of a longer word ("ban" finds "banana") while finished words are matched whole. That is the last word unless a space follows it; send `Match.CursorAt` (the caret position) when the caret can be elsewhere.
+- **Empty search**: Supported with empty/null query text. Requires facets enabled and at least one facetable field. Returns all documents, ignores the candidate bound. **Without `enableFacets` the empty query is refused, not empty**: `200`, no records, and `reason` set to `Search called with empty string and EnableFacets=false`. A browse page that omits the flag therefore renders an empty catalogue with no error, so read `reason` before rendering.
 - **No debounce needed on search**: Indx is fast enough that debouncing search requests is unnecessary. Fire on every keystroke.
 
 ### Sorting Behavior
 
-- **With search text**: Sorting is **2nd-order** — search relevancy (score) is always the primary sort. Sorting only applies to results included in the coverage step.
+- **With search text**: Sorting is **2nd-order**: the rung and the score always come first, and the sort orders records that tie.
 - **Empty search** (no text): Sorting becomes the **primary** ordering function.
-- Works on both numbers and strings (A–Z, 1–9). Default: descending. Set `SortAscending = true` to invert.
+- Works on both numbers and strings (A to Z, 1 to 9). Default: descending. Set `SortAscending = true` to invert.
 - To reset: set `query.SortBy = null`.
 
 ### Measuring performance
 
-Two different numbers, both true: **latency** (one search at a time — what a user waits; the web console's search preview reports the median and p95 of 100 sequential searches after warm-up) and **throughput** (searches per second with all cores busy — what a server sustains; the same tab reports it, and `SpectreJsonClient`'s "response time" is this figure divided per search). Compare like with like: a throughput-derived per-search time is typically 2–3× lower than latency on a multi-core machine.
+Two different numbers, both true: **latency** (one search at a time, what a user waits; the web console's search preview reports the median and p95 of 100 sequential searches after warm-up) and **throughput** (searches per second with all cores busy, what a server sustains; the same tab reports it, and `SpectreJsonClient`'s "response time" is this figure divided per search). Compare like with like: a throughput-derived per-search time is typically 2 to 3× lower than latency on a multi-core machine.
 
 ### Facets Tip
 
 When implementing search-as-you-type with a large dataset, consider only fetching facets (`EnableFacets = true`) after a small delay, not on every keystroke.
 
-### Coverage Tuning
+### The query's settings
 
-- `Mode` in C# (`SearchMode.EditDistance`, the default; `Bm25f`), `mode` over HTTP (by name: `EditDistance`, `Bm25f`) — how the documents are fetched. `EditDistance` takes every document holding each query word exactly or within one or two edits, counted, exact matches first; `Bm25f` is pattern recognition, with no word count. Until 6.0 a third mode, `Coverage`, was `EditDistance` reranked.
-- `Ranking.Rerank` (default: `true`; `ranking.rerank` over HTTP) — whether Coverage reranks the candidates, in either mode. In `EditDistance` it orders within each group (off: by pattern recognition, without the cost of Coverage); in `Bm25f` it reranks the best up to the candidate bound and cuts them to the rows, the facets counted over those candidates (off: pattern recognition alone).
-- `EnableMatchReport` (default: `false`; `EnableCoverageReport` before 6.0) — In any mode, reranked or not, `Result.MatchReport` says for each returned record how each query word was met (`Whole`, `Prefix`, `Suffix`, `Joined`, `RunTogether`, `OneEdit`, `TwoEdits`, `Synonym`, `NotFound`) and in which field, and `MatchesByField` counts them per field. Use it to see why a record ranks where it does, and whether a field's `Tolerance` lets through more edits than its data needs.
-- The query's three parts (6.0, in place of `CoverageSetup`, `CoverageDepth` and the boost flags):
-  - `Match` — what counts as a hit: `Tolerance` (`Exact`, `OneEdit`, `TwoEdits`, the default, which leaves each field its own `Field.Tolerance`), `Rungs` (`Fewest`, `All`), `OneEditFrom` 3, `TwoEditsFrom` 6, `CursorAt`, `TypingPrefixFrom` 3, `TypingPrefixOneEditFrom` 6, `JoinedWords`.
-  - `Candidates` — who comes in: every document holding the query's words on the first rung with hits is counted (`Result.ToleranceCounts`, never capped); the best of them up to the bound are ranked, the rows times `CandidatesPerRow` (4), at least 100 and at most 5 000, or `MaxCandidates` outright; `Result.Count` above `Result.Ranked` says the count was more (`Ranked` above the records returned: more were ranked than the rows). `Fallback` (default true): when nothing is counted, the most words then pattern matches (`Result.IsFallback`). `Rest` (default false, EditDistance only): pattern recognition's best records not counted come below the counted ones up to the bound, counted in `ToleranceCounts.Rest` and in the facets; none on overflow. `IndexTerms`.
-  - `Ranking` — the order: `Rerank` (true), `Share` (0.2, the reranker's share of the blend), `TypingShift`, `LongFieldFrom`/`LongFieldWeightFloor`, `WholeQueryFloor`, `FieldWeights`, `FieldBoosts`, `Boosts`, `Buries` (a list that is not empty is on).
-  - **Facets are counted over the counted documents**, the whole rung, so they agree with `ToleranceCounts`, not with the rows returned.
+- `Mode` in C# (`SearchMode.EditDistance`, the default; `Bm25f`), `mode` over HTTP (by name) decides how records are fetched; `Ranking.Rerank` (default `true`; `ranking.rerank`) whether the reranker orders them, in either mode. In `EditDistance` it orders within each rung (off: by BM25F); in `Bm25f` it reranks the best up to the candidate bound (off: BM25F alone).
+- The rest is on three parts, each never null in C#, each optional over HTTP (a member left out takes the dataset's query parameters, then the default):
+  - `Match`, what counts as a hit: `Tolerance` (`Exact`, `OneEdit`, `TwoEdits` the default, `ThreeEdits`; capped by each field's own `Tolerance`), `Rungs` (`Fewest`, the default, stops at the first rung with hits; `All` counts every rung up to the tolerance), `OneEditFrom` 3, `TwoEditsFrom` 6, `ThreeEditsFrom` 9 letters, `CursorAt`, `TypingPrefixFrom` 3, `TypingPrefixOneEditFrom` 6, `JoinedWords` (on: words typed together or apart still match).
+  - `Candidates`, which records come in: every record of the counted rung is counted (`Result.ToleranceCounts`, never capped); the best of them up to the bound are ranked, the rows times `CandidatesPerRow` (4), at least 100 and at most 5 000, or `MaxCandidates` outright. `Result.Count` above `Result.Ranked` says the count was larger than the bound. `Fallback` (default true): with nothing counted, the records holding the most words, then pattern matches (`Result.IsFallback`). `Rest` (default false): BM25F's best records not counted come below the counted ones, counted in `ToleranceCounts.Rest` and in the facets. `FillReach` (0 to 2) and `FillWithMostWords`: when the counted records are fewer than the rows, fill the page from the next rung's records and then those holding the most words (`Result.Fill` says how many came from each). `IndexTerms` (`Both`, `Words`, `Patterns`): what BM25F scores with.
+  - `Ranking`, the order: `Rerank` (true), `Share` (0.2, the reranker's share of the blend), `TypingShift`, `LongFieldFrom`/`LongFieldWeightFloor`, `WholeQueryFloor`, `FieldWeights` (a field's reranking weight for this search), `FieldBoosts`, `Boosts` and `Buries` (a list that is not empty is on).
+- **Facets are counted over the counted records**, the whole rung, so they agree with `ToleranceCounts`, not with the rows returned. They fold case: `Fiction` and `FICTION` are one entry.
+- `EnableMatchReport` (default `false`; `enableMatchReport`): `Result.MatchReport` says for each returned record how each query word was met (`Whole`, `Prefix`, `Suffix`, `Joined`, `RunTogether`, `OneEdit`, `TwoEdits`, `ThreeEdits`, `Synonym`, `NotFound`) and in which field. Use it to see why a record ranks where it does, and whether a field's `Tolerance` lets through more edits than its data needs.
 
 ### Language handling
 
 Indx has no per-language tokenizer, stemmer or stop-word list, and does not need one to work in Norwegian, English or mixed-language data. What replaces them:
 
-- **Typos and spelling variants** — one edit from three letters, two from six (`Match.Tolerance`, `OneEditFrom`, `TwoEditsFrom`).
-- **Inflections and prefixes** — a query word that is a prefix of a document word matches: *run* finds *running*, *bok* finds *bokhandel*. The reverse direction (query *running*, document *run*) is covered by pattern matching but scores lower under Coverage; add a one-way synonym (*running → run*) when that direction matters for a term.
-- **Compound words (sammensatte ord)** — *spesialpedagogikk* matches *spesial pedagogikk* and vice versa without rules (`Match.JoinedWords`). Decomposition and recomposition both work; no dictionary is involved.
-- **Domain vocabulary** — synonyms, editable by editors without code (next section).
+- **Typos and spelling variants**: one edit from three letters, two from six (`Match.Tolerance`, `OneEditFrom`, `TwoEditsFrom`), three from nine with `Tolerance.ThreeEdits`.
+- **Words being typed**: the word at the cursor is matched as the start of a longer word (*bok* finds *bokhandel* while typing). A finished word is matched whole. In a field with `PatternMatching`, any part of a word matches too, ranked below whole words.
+- **Compound words (sammensatte ord)**: a compound is linked to its parts when the index is built (`CompoundSetup`, on by default), so *ost* finds *brunost* and *geitost*, *hvitløksmør* finds records holding *hvitløk smør*, and two query words find the compound they make. Words typed together or apart match too (`Match.JoinedWords`). No dictionary is involved.
+- **Domain vocabulary**: synonyms, editable by editors without code (next section).
 
-So on a "stemming" checklist: Indx does not ship a stemmer because the matcher handles inflection by beginnings and endings. The one case left is an irregular form that shares neither with its base (*bok* and *bøker*, *mouse* and *mice*), and only there is a synonym entry the answer.
+So on a "stemming" checklist: Indx does not ship a stemmer. Inflections that share a beginning with the base are met while typing and by pattern; an irregular form that shares little with its base (*bok* and *bøker*, *mouse* and *mice*), or an inflection on a field matched by words only, is where a synonym entry is the answer.
 
-**Never propose synonyms for typos, spelling variants or translation.** The matcher finds misspellings by itself, and a synonym list in two languages is not a translation: it lengthens every search, and visitors searching in another language are better served by records in that language or by Search or ask.
+**Never propose synonyms for typos, spelling variants or translation.** The matcher finds misspellings by itself, and a synonym list in two languages is not a translation: visitors searching in another language are better served by records in that language or by Search or ask.
 
 ### Synonyms
 
-A per-dataset synonym list expands the query text before scoring — no re-indexing, effective on the next search. Entries are **multidirectional** (every term pulls in the others: *sofa ↔ couch*) or **one-way** (*hms → his majesty's ship*: searching the short form expands, searching the long form does not).
+A per-dataset synonym list gives query words alternatives: no re-indexing, effective on the next search. Entries are **multidirectional** (every term stands for the others: *sofa ↔ couch*) or **one-way** (*hms → helse, miljø og sikkerhet*: searching the short form finds the long form, not the reverse).
 
-- **web console**: the dataset's **Synonyms** tab — create, edit, filter, import/export JSON. Editors need no code access.
+- **web console**: the dataset's **Synonyms** tab: create, edit, filter, import/export JSON. Editors need no code access.
 - **HTTP**: `GET …/synonyms`, `PUT …/synonyms` (editor role).
 - **C#**: `engine.SynonymList` / `LoadSynonyms(path)` / `SaveSynonyms(path)`.
 
-Expansion lengthens the query, which lowers Coverage scores proportionally — measure before shipping a very large list. Details: [references/csharp.md](references/csharp.md#synonyms), [references/http-api.md](references/http-api.md#synonyms).
+A query word (or run of words) with an entry is held through the words as typed **or** any of the entry's terms, so a synonym widens the counted set: "war film" with *film ↔ movie* also counts the war movies. A record holding a word only through a synonym ranks below those with the typed word on its rung (`ToleranceCounts.ThroughSynonym`). Details: [references/csharp.md](references/csharp.md#synonyms), [references/http-api.md](references/http-api.md#synonyms).
 
 ### Dynamic document operations
 
@@ -218,12 +224,13 @@ For a whole-catalogue reload use `POST …/replace` (Indx): the old index keeps 
 
 Boosts lift matching documents. Two layers:
 
-- **Saved boost rules** (web console **Boost rules** tab; `GET/PUT/DELETE …/boosts`): a rule has a name, an `enabled` flag, conditions on filterable fields (`{field, value}` or `{field, min, max}`, joined with AND/OR), a strength (Low/Med/High) and an optional schedule (`activeFrom`, `activeUntil` dates) — campaign windows without code changes. Rules stack, and apply to every search (until 6.0 only with `enableBoost`).
-- **Ad-hoc boosts per query** (`Query.Ranking.Boosts`, `ranking.boosts` over HTTP / `POST …/boosts/from-filter`): boost any filter, including an OR of many value filters. This is how **per-user personalisation** works — build a boost list from the user's history or segment and pass it with the query; hundreds of thousands of boosted documents cost little. See [references/csharp.md](references/csharp.md#boosts).
+- **Saved boost rules** (web console **Boost rules** tab; `GET/PUT/DELETE …/boosts`): a rule has a name, an `enabled` flag, conditions on filterable fields (`{field, value}` or `{field, min, max}`, joined with AND/OR), a strength (Low/Med/High) and an optional schedule (`activeFrom`, `activeUntil` dates): campaign windows without code changes. Rules stack, and apply to every search.
+- **Ad-hoc boosts per query** (`Query.Ranking.Boosts`, `ranking.boosts` over HTTP / `POST …/boosts/from-filter`): boost any filter, including an IN filter of many values. This is how **per-user personalisation** works: build a boost list from the user's history or segment and pass it with the query; hundreds of thousands of boosted documents cost little. See [references/csharp.md](references/csharp.md#boosts).
+- **Bury**, the counterpart: a bury scores the documents its filter holds lower by its strength and moves nothing else (`ISearchEngine.CreateBury`, `Ranking.Buries`; over HTTP `POST …/buries/from-filter`, `ranking.buries`, and saved bury rules under `GET/PUT/DELETE …/buries`, which apply to every search). Use it for out-of-stock items or an outlet category that should stay findable but sink.
 
 Scheduled rules that pass their end date stop applying but are kept; the web console flags them (chip, summary, tab badge) and notifies the team's editors. Import/export the rule list as JSON from the tab, the same array as `GET/PUT …/boosts`.
 
-Popularity or sales-based ranking: store a `popularity` number on each document and boost on ranges of it (rule or ad-hoc). The Indx server records clicks and conversions (`events/select`, `events/convert`) and reports them per document and per user (`statistics/*`, including `statistics/subjects/{subject}` for one user's top documents), but it does not rank on them by itself: feed those counts into a `popularity` field or a per-user boost. There is no negative boost ("bury") and no pinned positions — relevance stays the primary order. A boost adds 257 × strength to a score that runs to 65 535, so even High (about 1 %) reorders results that score close together; it does not override relevance.
+Popularity or sales-based ranking: store a `popularity` number on each document and boost on ranges of it (rule or ad-hoc). The Indx server records clicks and conversions (`events/select`, `events/convert`) and reports them per document and per user (`statistics/*`, including `statistics/subjects/{subject}` for one user's top documents), but it does not rank on them by itself: feed those counts into a `popularity` field or a per-user boost. There are no pinned positions: relevance stays the primary order. A boost adds 257 × strength to a score that runs to 65 535 (a bury takes the same away), so even High (about 1 %) reorders results that score close together; it does not override relevance or move a record across rungs. The strengths of one search's boosts may sum to at most 255; past it the search is refused with a `reason`.
 
 ### Vector and hybrid search
 
@@ -241,7 +248,7 @@ Indx Server can let the search field answer questions as well. On each typing pa
 - **Fits** records written to explain (`kind: documentation`) or records of facts (`kind: catalogue`, where a description becomes filters). Not datasets of identifiers.
 - **Three switches:** a model key on the instance, "Search or ask" shown on the dataset (a team admin), and `enabled` in its settings (an editor). Typed text then goes to the model providers: the site's privacy notice must say so.
 - **Mode** (`mode`): `strict`, `soft` (default), `open`, `inviting` or `proactive`, from only offering once sure to starting the answer on its own. Keep `soft` unless asked; `proactive` costs an answer per finished question.
-- **Settings** worth setting: `siteDescription`, `knowledge` (markdown facts no record holds, which answers may state), `filterNotes` and the Ask phrases (the dataset's own names for its records, such as "the movie") on a catalogue. Make the fields questions are about Filterable and Facetable.
+- **Settings** worth setting: `siteDescription`, `knowledge` (markdown facts no record holds, which answers may state), and `filterNotes` on a catalogue. Make the fields questions are about Filterable and Facetable.
 - **Front end:** with intrface, `useSearchOrAsk()` plus `onAsk`/`searchOrAsk` on `SearchInput` and an `AskPanel`; it stays quiet where the feature is off. Over HTTP: `intent` on a pause, `ask` as server-sent events. A Search key covers all of it.
 
 Setup, every setting, the API and the pitfalls: [references/search-or-ask.md](references/search-or-ask.md).
@@ -365,7 +372,8 @@ with no records means an honest no-match. Full page, kept in step with this list
 
 | Symptom | First suspect |
 |---|---|
-| Every query returns nothing | A `ranking.fieldBoosts` key that is not a searchable field; `reason` names it. Or the dataset is not `Ready` |
+| Every query returns nothing | A `ranking.fieldBoosts` key that is not a searched field; `reason` names it. Or the dataset is not `Ready`. Or no field has `wordMatching` or `patternMatching` (a configuration from `analyze` searches nothing until one has) |
+| A search lists far fewer records than v5 did | By design: the list is the records holding every word. `candidates.rest` adds BM25F's best of the others below them, `candidates.fillReach` fills a short page from the next typo level |
 | A query of punctuation only (`...`, `..`) returns nothing | By design since IndxSearchLib 5.0.4: no words to search for, so it is refused with a `reason`. Treat it like an empty query |
 | An empty query returns nothing | `enableFacets` missing (and at least one facetable field needed) |
 | The MCP `search` finds nothing but the app's search box finds hits | Not a fault. The MCP tool sets `candidates.fallback=false`; over HTTP `candidates` is usually absent and it defaults to **true**. Pass `broaden: true` to compare like with like (it also adds pattern matches below the hits, `candidates.rest`) |
@@ -387,14 +395,14 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 | Field weighting, per-query field boosts | ✅ | `Weight`, `Ranking.FieldBoosts` |
 | Typo tolerance | ✅ | built in, no config |
 | Search-as-you-type / autocomplete | ✅ | full ranked search per keystroke; no separate suggest endpoint needed |
-| Stemming | 🟠 | prefix, suffix and compound matching built in; irregular forms (*mouse*/*mice*) via synonyms |
-| Compound-word decomposition | ✅ | no rules needed |
+| Stemming | 🟠 | the word being typed matches by its beginning, pattern matching finds parts of words, compounds are linked to their parts; irregular forms (*mouse*/*mice*) via synonyms |
+| Compound-word decomposition | ✅ | `CompoundSetup`, on by default; no dictionary |
 | Synonyms, editor-editable | ✅ | web console tab, HTTP, C# |
 | Facets with counts, per-type counts | ✅ | `Facetable`; zero-count values drop from the response — keep them greyed in the UI |
-| Value / range / boolean filters, AND/OR/NOT | ✅ | server-side filters; NOT is `!filter` in C# and `POST filters/not` over HTTP |
+| Value / range / IN / geo / date filters, AND/OR/NOT | ✅ | server-side filters, or one filter expression (`brand IN [...] AND price BETWEEN 100 AND 2000`); NOT is `!filter` in C# and `POST filters/not` over HTTP |
 | Sorting by number/date/string | ✅ | `Sortable`; on a text query relevance stays first and the sort breaks ties, so a strict "price, low to high" list is an empty search with filters |
 | Pagination | 🟠 | no offset parameter: ask for enough results (`maxNumberOfRecordsToReturn`, default 30) and page on the client |
-| Total hit count | 🟠 | no total on the result; facet counts give per-value totals, capped at `coverageDepth` (default 500, raise it per query or per dataset) |
+| Total hit count | ✅ | `count` on every result, split by typo level in `toleranceCounts`; facets count the same records |
 | Variant-level filtering | ✅ | array fields, any-element match |
 | Collapse variants to one card | 🟠 | model one document per work |
 | Real-time updates on publish | ✅ | dynamic operations, immediate; or an Indx server webhook (Sanity and Contentful with no code) |
@@ -402,7 +410,8 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 | Scheduled campaign boosts | ✅ | boost rules with `activeFrom`/`activeUntil` |
 | Per-user personalisation | ✅ | per-user boost lists |
 | Popularity ranking | 🟠 | boost on a popularity field you supply, for example conversion counts from Statistics; events are recorded but not ranked on automatically |
-| Bury / pin | ❌ | boosts lift only, and gently: High adds about 1 % of the score range |
+| Bury | ✅ | `Ranking.Buries`, saved bury rules; gentle, as boosts are |
+| Pin to a position | ❌ | boosts and buries move records gently: High is about 1 % of the score range |
 | Query redirects ("returns" → a page) | ❌ | handle in your front-end |
 | Semantic / vector / hybrid search | ✅ | bring your own embeddings |
 | Answers to questions in the search field | ✅ | Indx server: Search or ask, answers written from the dataset's records with citations; needs a model key. See [references/search-or-ask.md](references/search-or-ask.md) |
@@ -421,9 +430,10 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 ## Key Design Properties
 
 - **No language configuration** — inflections, compounds and typos are handled by character-level matching, so there are no tokenizers, stemmers or stop-word lists to maintain per language; synonyms cover domain vocabulary
-- **Built-in typo tolerance** — pattern matching handles misspellings automatically
+- **Built-in typo tolerance** — every query word is matched within one or two edits by length, with no configuration
 - **In-memory indexing** — search indexes live in memory for speed. The Indx server keeps documents, configuration, synonyms, boost rules and statistics in SQLite and rebuilds the indexes on its own after a restart; the C# library persists nothing unless you do
-- **Linear coverage scaling** — coverage cost scales linearly with the candidates ranked (`Candidates.CandidatesPerRow`, `MaxCandidates`)
+- **Counted results** — the count, the facets and the list come from the same set of records, so "140 hits" means 140
+- **Linear reranking cost** — reranking cost scales linearly with the candidates ranked (`Candidates.CandidatesPerRow`, `MaxCandidates`)
 - **Schemaless JSON** — nested objects supported, fields discovered automatically via `Init`/`Analyze`
 - **Two-step retrieval** — search returns keys + scores; fetch full documents separately: `GetJsonDataOfKey` in the C# NuGet API, `POST …/documents/lookup` in the HTTP API
 
@@ -434,7 +444,7 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 - [Troubleshooting](https://docs.indx.co/troubleshooting) — symptoms, causes and checks
 - [Privacy & hosting](https://docs.indx.co/gdpr) — data residency, GDPR, DPA
 - **C# / .NET**
-  - [IndxSearchLib NuGet](https://www.nuget.org/packages/IndxSearchLib/) — core search engine (.NET 10, v5.0.2)
+  - [IndxSearchLib NuGet](https://www.nuget.org/packages/IndxSearchLib/) — core search engine (.NET 10, 6.0)
 - **HTTP API**
   - [Indx](https://github.com/indxSearch/Indx) — self-host server template (ASP.NET Core)
   - OpenAPI spec — every Indx server publishes its own at `/swagger/v2.0-beta/swagger.json` (e.g. `https://localhost:5001/swagger/v2.0-beta/swagger.json`)

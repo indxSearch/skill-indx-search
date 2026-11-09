@@ -5,7 +5,7 @@ Use this when a project is on **Indx 5** and moves to **Indx 6**:
 | | Indx 5 | Indx 6 |
 |---|---|---|
 | C# library | `IndxSearchLib` 5.0.x | `IndxSearchLib` 6.0 |
-| Indx server | 2.0.0-beta.1 to beta.3 | 2.0.0-beta.4 and later (URLs stay `/api/v2.0-beta/…`) |
+| Indx server | 2.0.0-beta.1 to beta.3 | 2.0.0-beta.4 and later (same routes, `/api/teams/…`) |
 | npm | `@indxsearch/indx-types` 3.x, `@indxsearch/intrface` 3.x | 4.0 of both |
 
 Every name below that is marked as Indx 5 is in IndxSearchLib 5.0.6, the last 5.0 release, so
