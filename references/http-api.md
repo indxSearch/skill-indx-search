@@ -12,11 +12,11 @@ All endpoints require a **Bearer token** — an API key from the console (Accoun
 
 | Level | Can call | Use it for |
 |---|---|---|
-| **Search only** | `search`, `search/vector`, `search/hybrid`, `documents/lookup`, `filters/value`, `filters/range`, `filters/in`, `filters/position`, `filters/expression`, `filters/combine`, `filters/not`, `boosts/from-filter`, `buries/from-filter`, `fields/facetable`, `fields/filterable`, `fields/sortable`, `GET fields/configuration`, `GET query-parameters`, `status`, and `PUT` on an existing dataset | Websites and apps — the key is visible in the browser, and this is all it can do |
-| **Read only** | Every read: adds `export`, `fields/configuration`, `fields/profiles`, `synonyms`, `boosts`, `buries`, counts, dataset lists | Exports, reporting, agents, back-ups — keep it on a server |
+| **Search only** | `search`, `search/vector`, `search/hybrid`, `documents/lookup`, `filters/value`, `filters/range`, `filters/in`, `filters/position`, `filters/expression`, `filters/combine`, `filters/not`, `boosts/from-filter`, `buries/from-filter`, `fields/facetable`, `fields/filterable`, `fields/sortable`, `GET fields/configuration`, `GET query-parameters`, `status`, a record's `public` cold storage, and `PUT` on an existing dataset | Websites and apps — the key is visible in the browser, and this is all it can do |
+| **Read only** | Every read: adds `export`, `fields/configuration`, `fields/profiles`, `synonyms`, `boosts`, `buries`, counts, dataset lists, and `public` and `answer` cold storage | Exports, reporting, agents, back-ups — keep it on a server |
 | **Full access** | Everything your team role allows, including loading, changing and deleting data | Your own servers and pipelines |
 
-A key never exceeds its owner's role in the team: a Viewer can create Search and Read keys, not Full ones. Keys cannot be changed after they are created — create a new one and revoke the old. A key outside its limits gets the same answer as a missing team or dataset (`404 teamNotFound` / `datasetNotFound`); a call above its level gets `403 insufficientKeyScope`. Keys created before access levels existed are unscoped and reach every team you belong to — replace them.
+A key never exceeds its owner's role in the team: a Viewer can create Search and Read keys, not Full ones. A Read key created with **Also reads private cold storage** reads `private` cold storage too (a support chatbot's backend); only an Editor or Admin can create one. Keys cannot be changed after they are created — create a new one and revoke the old. A key outside its limits gets the same answer as a missing team or dataset (`404 teamNotFound` / `datasetNotFound`); a call above its level gets `403 insufficientKeyScope`. Keys created before access levels existed are unscoped and reach every team you belong to — replace them.
 
 **Personal keys and team keys.** A personal key (Account → API keys) acts as its owner and never exceeds their team role; it stops working if they leave the team. A team key (Manage team → API keys, created by a team Admin) belongs to the team: its rights are its access level alone (Full access writes as an Editor; deleting datasets and managing the team give `403 insufficientRole`), it keeps working when its creator leaves, and every Admin of the team can see and revoke it. **For anything deployed (a production site, a shared server, CI), recommend a team key.** Personal keys suit a developer's own scripts and AI agents.
 
@@ -192,9 +192,10 @@ The individual role setters (`PUT fields/searchable` / `fields/filterable` / `fi
 |--------|-----------|------|-------------|
 | POST | `index` | — | Start indexing → `202 Accepted` at once with the status body; the build runs in the background. First build: poll `GET status` until Ready. On a Ready dataset it is a rebuild on a shadow engine: poll until `shadowBuildInProgress` is `false`, then check `shadowBuildError` |
 | POST | `search` | `QueryProxy` | Full-text search → `Result` |
+| POST | `search/multi` | `QueryProxy[]` | Up to 20 searches in one call, answered in the order sent; each answer carries its `queryId`, a failed one is `{ status, error }` in its place. What an InstantSearch page asks at once: its list and each ticked OR facet's counts without that facet's own filter |
 | POST | `search/vector` | `VectorQueryProxy` | Embedding nearest-neighbour search → `EmbeddingResultEntry[]` |
 | POST | `search/hybrid` | `HybridQueryProxy` | Blended text + vector search → `EmbeddingResultEntry[]` |
-| POST | `documents/lookup` | `long[]` (document keys) | Retrieve full JSON records → `string[]` |
+| POST | `documents/lookup` | `long[]` (document keys) | Retrieve full JSON records → `string[]`; `?start=&length=` for a part. A search with `includeDocuments: true` returns them itself |
 
 Search responses carry an **`Indx-Query-Id`** header (CORS-exposed): an opaque id minted per
 search when statistics are enabled. Hold it briefly on the client and echo it in the
@@ -218,6 +219,39 @@ Insert, update, and delete without rebuilding the index. The dataset stays ready
 | DELETE | `documents` | `long[]` | Delete multiple documents by key — all-or-nothing: missing keys → 404 naming all of them, nothing deleted → `204` |
 | POST | `documents/delete-by-filter` | `FilterProxy` | Delete all documents matching a filter → `204` |
 | POST | `documents/update-by-filter` | `FilterFieldUpdateProxy` | Batch update a field on all matching documents → `200` (`{"count": n}` — documents updated) |
+
+### Cold Storage
+
+Text kept beside a record and never searched, nor held in memory: a book's table of contents, a
+review, an article, stock notes. Read when needed, by an agent, a page or a backend; a read may be
+slower than a search. It survives `load` and `replace`, so text from another system than the
+records is loaded by a sync of its own. An item belongs to one record, by key, with a `name`
+(`toc`) and optional `?language=`; at most 50 per record and 256 000 characters each;
+`contentType` `text/plain`, `text/markdown` or `application/json`; a one-line `description` for
+agents. Something that belongs to many records is a record of its own (an author's biography on
+the author's record).
+
+| Method | Operation | Body | Description |
+|--------|-----------|------|-------------|
+| PUT | `documents/{documentKey}/cold/{name}` | `{ content, contentType?, description?, visibility?, sourceRef?, sourceUpdatedUtc? }` | Create or replace one item, whole → `201` / `200`, version as `ETag`. `If-Match` refuses a write against a changed item; an older `sourceUpdatedUtc` than stored is refused (`409 coldConflict`) |
+| GET | `documents/{documentKey}/cold/{name}` | — | One item with its content |
+| GET | `documents/{documentKey}/cold` | — | The record's items, without content |
+| DELETE | `documents/{documentKey}/cold/{name}` | — | Delete one item → `204` |
+| PUT | `cold` | items, each with `recordKey` and `name` | A sync's batch; `?prune=true` also deletes what the same key wrote before and did not send now, nobody else's |
+
+`visibility`: `public` (a page may show it), `answer` (Search or ask's answer may use it, a browser
+never), `private` (the default: customer data). Who reads what:
+
+| Caller | Reads |
+|---|---|
+| Search key over HTTP | `public` |
+| Search key over MCP | nothing |
+| Search or ask's answer | `public`, `answer` |
+| Read key; a Viewer | `public`, `answer` |
+| Read key with the private flag; Full key; Editor or Admin | every item |
+
+Writing takes a Full key or an Editor. Items a caller may not read are left out of every listing,
+uncounted, and asking for one by name answers `404 coldNotFound`, as for one that does not exist.
 
 ### Filters and Boosts
 
@@ -409,6 +443,13 @@ The v5 members (`enableCoverage`, `coverageDepth`, `coverageSetup`, `enableBoost
   question while a visitor types.
 - `enableFacets` — also required for an **empty** `text`. Empty text with `enableFacets: false` is
   refused: `200`, no records, `reason` set. The dataset also needs one facetable field.
+- `offset` — the ranked list from that place, for paging; `count` and the facets stay the whole
+  search's. Page while `offset` is below the result's `ranked`.
+- `facetFields` — count only these facetable fields (default: every one); a name that is not a
+  facetable field refuses the search with a `reason`. `facetValueLimit` — the commonest values per
+  field (0, the default: every value).
+- `includeDocuments` — the response also carries `documents`, the records' JSON in the order of
+  `records` (null for one deleted since): one call instead of a search and a `documents/lookup`.
 
 `sortBy` — field name as a **string** (e.g. `"price"`).
 
@@ -485,12 +526,17 @@ apply from the next search, no reindex. A search's own values are refused in a `
   empty search every record the filter lets through). `ranked` — how many were ranked, at most the
   bound: `count` above `ranked` means the bound was too small, `ranked` above the records returned
   that a next page has more.
+- `facetStats` — for each number field among the facets, `min`, `max` and how many records hold a value,
+  over the whole search.
+- `documents` — with `includeDocuments`, the records' JSON in the order of `records`.
+- `cold` — the names of the cold storage each listed record holds that the key may read, by record key
+  (`{ "42": ["review", "toc"] }`); absent when none does. Read them with `GET documents/{key}/cold/{name}`.
 - `didTimeOut` — the search could not be *served*, as opposed to serving and finding nothing: either it
   hit the timeout limit, or the engine was not `Ready`. Over HTTP the not-Ready case normally surfaces
   as `409` with the current state before it gets this far, so on this surface the flag almost always
   means the timeout. Either way, do not render an empty result with this flag set as "no results".
 
-Use `POST .../documents/lookup` with the array of `documentKey` values to retrieve full JSON documents.
+Send `includeDocuments: true` to get the records' JSON with the search, or `POST .../documents/lookup` with the array of `documentKey` values.
 
 ### Filter and Boost Models
 

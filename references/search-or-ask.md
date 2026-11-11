@@ -35,13 +35,13 @@ Do **not** propose it for a dataset of identifiers or codes. Low question volume
 |---|---|---|
 | `enabled` | `false` | |
 | `kind` | `documentation` | `documentation` or `catalogue` |
-| `siteDescription` | dataset description | One or two sentences: who reads, what the records hold. Every judgement and answer reads it |
+| `siteDescription` | a sentence naming the dataset | One or two sentences: who reads, what the records hold. Every judgement and answer reads it |
 | `titleField`, `sectionFields`, `snippetFields` | automatic | What the judge reads of a result. Snippets are prose, never identifiers or URLs |
 | `filterNotes` | none | Catalogue: what a value means, one per line (`barneskole: grades 1 to 7`) |
 | `knowledge` | none | Markdown facts no record holds (scope, what a rating means, VAT, delivery). Answers may state it as "the site says"; never read by the judge; 8,000 characters max. A Search key reads the settings **without** it |
 | `answers` | `best` | `best` (the instance's stronger model) or `fast` (about 1/20 of the cost) |
 | `answerModel` | none | Another model the instance offers (`effective.answerModels`), in place of the one `answers` names; any other is refused with `400` |
-| `searches` | follows `answers` | Catalogue only: `several` (an agent that searches, sorts and filters) or `one` (one search, a summary). Unset: `best` several, `fast` one |
+| `searches` | follows `answers` | Catalogue only: `several` (an agent that searches, sorts and filters) or `one` (one search, a summary). Unset: `best` several, `fast` one. The agent filters by expression (OR, NOT, IN), is told whether its words matched exactly or within edits, reads records whole and reads their `public` and `answer` cold storage, never `private` |
 | `answerInstructions` | none | Voice and house rules; cannot loosen grounding. 1,500 characters max |
 | `answerLanguage` | visitor's | One language for every answer |
 | `mode` | `soft` | How forward the offer is, see below |
