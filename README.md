@@ -1,5 +1,7 @@
 # skill-indx-search
 
+> **Preview.** This is the skill for Indx 6, for customers on the preview release. The released skill is on the [`main`](https://github.com/indxSearch/skill-indx-search) branch.
+>
 > Targets Indx 6: IndxSearchLib 6.0 and the Indx server 2.0 beta 4 and later. Moving from Indx 5? See the [migration guide](references/migration-v5-to-v6.md).
 > AI agents can sometimes produce incorrect code. Always verify generated output against the [official documentation](https://docs.indx.co).
 
@@ -8,8 +10,10 @@ Everything your AI coding agent needs to understand, install, and integrate [Ind
 ## Install
 
 ```bash
-npx skills add indxSearch/skill-indx-search
+git clone -b v6 https://github.com/indxSearch/skill-indx-search
 ```
+
+Put the folder where your agent reads its skills. `npx skills add indxSearch/skill-indx-search` installs the released skill from `main`.
 
 Or browse on [skills.sh](https://skills.sh/indxsearch/skill-indx-search/indx-search).
 
