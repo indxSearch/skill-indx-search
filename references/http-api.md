@@ -399,6 +399,7 @@ Full (with defaults shown; send only what the search must decide, see below):
   "enableFacets": false,
   "enableMatchReport": false,
   "measureFit": false,
+  "collapseBy": null,
   "counts": null,
   "sortBy": null,
   "sortAscending": false,
@@ -456,7 +457,11 @@ The v5 members (`enableCoverage`, `coverageDepth`, `coverageSetup`, `enableBoost
   own (all events counted beside the upcoming listed). A bad expression → `400 invalidFilterExpression`.
 - `includeDocuments` — the response also carries `documents`, the records' JSON in the order of
   `records` (null for one deleted since): one call instead of a search and a `documents/lookup`.
-  `documentFields: ["card", "id"]` keeps only those top-level fields of each record.
+  `includeFields: ["card", "id"]` keeps only those top-level fields of each record; it must hold
+  the fields of `collapseBy` (else `400 invalidArgument`).
+- `collapseBy` — `["bookTitle"]`: one record per value (of several fields: per combination), the
+  first in the ranking kept, nothing moved; `offset` counts the records kept. `count` and the facets
+  count records. The fields need a role and may not be arrays (else a `reason`).
 
 `sortBy` — field name as a **string** (e.g. `"price"`).
 
