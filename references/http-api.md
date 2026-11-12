@@ -192,7 +192,8 @@ The individual role setters (`PUT fields/searchable` / `fields/filterable` / `fi
 |--------|-----------|------|-------------|
 | POST | `index` | — | Start indexing → `202 Accepted` at once with the status body; the build runs in the background. First build: poll `GET status` until Ready. On a Ready dataset it is a rebuild on a shadow engine: poll until `shadowBuildInProgress` is `false`, then check `shadowBuildError` |
 | POST | `search` | `QueryProxy` | Full-text search → `Result` |
-| POST | `search/multi` | `QueryProxy[]` | Up to 20 searches in one call, answered in the order sent; each answer carries its `queryId`, a failed one is `{ status, error }` in its place. What an InstantSearch page asks at once: its list and each ticked OR facet's counts without that facet's own filter |
+| POST | `search/multi` | `QueryProxy[]` | Up to 20 searches in one call, answered in the order sent; each answer carries its `queryId`, a failed one is `{ status, error }` in its place. What an InstantSearch page asks at once: its list and each ticked OR facet's counts without that facet's own filter. Each search may carry `count`, `source`, `session` in its body, over the query string's, so only the visitor's search is counted |
+| POST | `search/groups` | `{ …search, groups: [{ name, filter?, rows, countFilter?, candidates?, ranking?, match?, primary? }] }` | One text answered in named sections, each ranked within its own filter (ANDed with the search's), with its own rows and count: books, authors and events of a search box in one call. → `{ groups: { name: result }, queryId }`; one search in the statistics, the `primary` section's (else the first). `countFilter` counts by another filter than the section lists by |
 | POST | `search/vector` | `VectorQueryProxy` | Embedding nearest-neighbour search → `EmbeddingResultEntry[]` |
 | POST | `search/hybrid` | `HybridQueryProxy` | Blended text + vector search → `EmbeddingResultEntry[]` |
 | POST | `documents/lookup` | `long[]` (document keys) | Retrieve full JSON records → `string[]`; `?start=&length=` for a part. A search with `includeDocuments: true` returns them itself |
@@ -452,6 +453,7 @@ The v5 members (`enableCoverage`, `coverageDepth`, `coverageSetup`, `enableBoost
   field (0, the default: every value).
 - `includeDocuments` — the response also carries `documents`, the records' JSON in the order of
   `records` (null for one deleted since): one call instead of a search and a `documents/lookup`.
+  `documentFields: ["card", "id"]` keeps only those top-level fields of each record.
 
 `sortBy` — field name as a **string** (e.g. `"price"`).
 
