@@ -176,7 +176,11 @@ words and stays out of the word lookup, so it orders records but does not count 
 - **A configuration made with `Init` searches nothing until one of the two is set.** Code that set
   `Searchable` after `Init` must set the new roles instead, or no field is searched.
 - **A field configuration saved by v5** (`SaveFieldConfiguration`, an Indx server's stored
-  datasets) is read as it was searched: `Searchable` becomes both roles. Nothing to convert.
+  datasets) is read as it was searched: a `Searchable` field is matched by pattern, and by its words
+  only where v5's `WordIndexing` was on, which it was not by default. **Turn on `WordMatching` after
+  upgrading** on the fields visitors type (titles, names, codes): until then no field is matched by
+  its words, searches order records by score and do not narrow the list to the ones that match, and
+  counts and facets cover nearly the whole dataset. The server's field configuration page says so.
 - Which way a searched field is matched is a reindex (`Index()`); whether it is searched at all is a
   reload (`Load`), as `Searchable` was.
 - The shortest word is `TokenizerSetup.MinimumWordSize` (2) in every field: one-letter words are no
