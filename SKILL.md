@@ -365,7 +365,7 @@ Put books, articles, events and authors in **one dataset** with a `contentType` 
 
 ### Variants and editions
 
-Model one document per work with editions as an array (`editions[].isbn`, `editions[].format`, `editions[].price`). Array fields index one value per element and a filter matches if **any** element matches, so "paperback under 200" works at variant level while results stay one card per work. Note that `removeDuplicates` is per-document-key dedupe, not a group-by.
+Model one document per work with editions as an array (`editions[].isbn`, `editions[].format`, `editions[].price`). Array fields index one value per element and a filter matches if **any** element matches, so "paperback under 200" works at variant level while results stay one card per work. There is no group-by on a field.
 
 ## Troubleshooting by symptom
 

@@ -252,7 +252,6 @@ var query = new Query("search text", maxResults)
     EnableFacets = false,                   // default: false
     SortBy = engine.GetField("rating"),     // Field object, default: null
     SortAscending = false,                  // default: false
-    RemoveDuplicates = true,                // default: true
     Filter = filter,                        // Filter object, default: null
     TimeOutLimitMilliseconds = 1000         // default: 1000, max: 10000
 };

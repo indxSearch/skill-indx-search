@@ -399,7 +399,7 @@ Full (with defaults shown; send only what the search must decide, see below):
   "enableFacets": false,
   "enableMatchReport": false,
   "measureFit": false,
-  "removeDuplicates": true,
+  "counts": null,
   "sortBy": null,
   "sortAscending": false,
   "timeOutLimitMilliseconds": 1000,
@@ -429,7 +429,7 @@ The v5 members (`enableCoverage`, `coverageDepth`, `coverageSetup`, `enableBoost
   one edit, else two) is counted, `toleranceCounts` in the result, never capped. The best of them up
   to the bound are ranked: the rows times `candidatesPerRow` (4), at least 100 and at most 5 000, or `maxCandidates` outright;
   `count` above `ranked` says the bound was reached. `fallback: false` returns an empty list when nothing is
-  counted, instead of the most words then pattern matches (`isFallback`). `rest: true` (EditDistance)
+  counted, instead of the most words then pattern matches (`isFallback`), and `count` is then 0. `rest: true` (EditDistance)
   adds BM25F's best records not counted below the counted ones, up to the bound, counted in
   `toleranceCounts.rest`. `fillReach` (0 to 2) and `fillWithMostWords` fill a page the counted
   records leave short, from the next rung and then the records holding the most words, each in a
@@ -451,6 +451,9 @@ The v5 members (`enableCoverage`, `coverageDepth`, `coverageSetup`, `enableBoost
 - `facetFields` — count only these facetable fields (default: every one); a name that is not a
   facetable field refuses the search with a `reason`. `facetValueLimit` — the commonest values per
   field (0, the default: every value).
+- `counts` — `{ "name": "<filter expression>" }`: the result's `counts` says how many of the records
+  `count` counts each filter lets through, over the same set as the facets, without a search of its
+  own (all events counted beside the upcoming listed). A bad expression → `400 invalidFilterExpression`.
 - `includeDocuments` — the response also carries `documents`, the records' JSON in the order of
   `records` (null for one deleted since): one call instead of a search and a `documents/lookup`.
   `documentFields: ["card", "id"]` keeps only those top-level fields of each record.
@@ -529,7 +532,8 @@ apply from the next search, no reindex. A search's own values are refused in a `
 - `count` — how many records answer, in every mode (in `Bm25f` every record with a score, in an
   empty search every record the filter lets through). `ranked` — how many were ranked, at most the
   bound: `count` above `ranked` means the bound was too small, `ranked` above the records returned
-  that a next page has more.
+  that a next page has more. `0` when nothing is counted and `candidates.fallback` is `false`.
+- `counts` — with the query's `counts`, the count of each named filter over the records `count` counts.
 - `facetStats` — for each number field among the facets, `min`, `max` and how many records hold a value,
   over the whole search.
 - `documents` — with `includeDocuments`, the records' JSON in the order of `records`.
