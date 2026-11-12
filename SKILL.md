@@ -13,6 +13,8 @@ If you are **evaluating** Indx against a feature list, read [Capability summary]
 
 This skill targets **Indx 6**: IndxSearchLib **6.0** (.NET 10), the Indx server **2.0 beta 4** and later (team-scoped HTTP API, OpenAPI document `v2.0-beta`, token-only auth), and `@indxsearch/intrface` and `indx-types` **4.0**. Everything below assumes Indx 6.
 
+The 4.0 front-end packages are prereleases on npm's `beta` tag; a plain install still gets the 3.x line, which speaks the v5 wire. Install them with `npm i @indxsearch/intrface@beta @indxsearch/indx-types@beta` (intrface brings the matching `@indxsearch/systm` beta with it).
+
 **Before giving any integration guidance, establish which version the user is on.** The versions differ in ways that silently break copy-pasted code: v6 query settings sent to a v5 server are ignored, and v5 code does not compile against IndxSearchLib 6.0. Detection signals:
 
 | Signal | v4 (legacy) | v5 | v6 (this skill) |
