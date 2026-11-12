@@ -61,7 +61,7 @@ Every error is an [RFC 9457 ProblemDetails](https://www.rfc-editor.org/rfc/rfc94
 | Status | `code` | Meaning | What to do |
 |--------|--------|---------|------------|
 | `400` | `invalidArgument` | Missing/invalid body or argument | Fix the request; don't retry as-is |
-| `400` | `invalidDatasetName` | The dataset name itself is not allowed | Use letters/digits (no path characters) |
+| `400` | `invalidDatasetName` | The dataset name itself is not allowed | Keep names to letters, digits, `.`, `-` and `_` (`gyldendal.no` is fine); no `/` or other path characters |
 | `400` | `loadFailed` | The JSON payload could not be loaded/analyzed (parse error, key-field violation) | Fix the data; the dataset's previous documents are untouched on `replace` |
 | `400` | `operationFailed` | A server-side step failed cleanly (index build, shadow build, wake-up) | Read `detail`; retrying may work after fixing the cause |
 | `400` | `unknownFilter` | A referenced filter `hashString` could not be resolved | Re-create the filter and retry with the new token — never retry without the filter |
@@ -418,7 +418,9 @@ The v5 members (`enableCoverage`, `coverageDepth`, `coverageSetup`, `enableBoost
 
 - `filterExpression` — e.g. `"brand IN [\"nike\", \"puma\"] AND (price < 500 OR NOT category = \"outlet\")"`:
   `= != < <= > >=`, `IN [..]`, `BETWEEN a AND b`, `within(field, lat, lon, meters)`, `AND OR NOT`
-  and parentheses, text in double quotes with JSON's escapes (a JSON-serialized string drops in as it is), `MATCHCASE` for case. ANDed with `filter`;
+  and parentheses, text in double quotes with JSON's escapes (a JSON-serialized string drops in as it is), `true` / `false`
+  bare for a boolean field (`isMainProduct = true`), `MATCHCASE` for case. `!=` and `NOT` also match the records where
+  the field is empty or missing (`NOT format IN ["pocket"]` keeps the records with no format). ANDed with `filter`;
   `filterParameters` gives the token for each `$name` placeholder. Also on `search/vector` and
   `search/hybrid`. Errors → `400 invalidFilterExpression`.
 
