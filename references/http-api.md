@@ -79,7 +79,7 @@ restart — so it can be held for the life of a dataset's field configuration.
 | `404` | `documentNotFound` | The addressed document key(s) don't exist | Fix the keys; batch deletes name every missing key and apply nothing |
 | `404` | `statisticsDisabled` | Statistics are switched off on this instance | Don't retry; the events/statistics routes are unavailable by operator choice |
 | `409` | `invalidState` | **Wrong lifecycle state** — the dataset can't serve this operation right now | See below |
-| `409` | `shadowBusy` | A background rebuild (replace / re-index / field-config) is already running | Retry after it completes |
+| `409` | `shadowBusy` | A background rebuild (replace / re-index / field-config) is running; every change to the dataset waits for it, a single document included | Retry after it completes |
 | `429` | `rateLimited` | Too many attempts from this address on an anonymous auth endpoint; this API key exceeded its requests-per-second budget (where the operator enabled it); or too many calls from this address carried no bearer token that validates (missing, expired or invalid) | Wait `Retry-After` seconds (also `retryAfterSeconds` in the body); do not retry sooner. For the per-key limit, spread calls out or batch them (`documents` endpoints take arrays). For the tokenless limit, authenticate — every one of those calls was going to 401 |
 | `500` | `internalError` | Unexpected server error; `traceId` included | Report the `traceId` |
 
@@ -178,7 +178,7 @@ Roles are written by one endpoint; the role lists are read-only.
 | GET | `fields/profiles` | — | The dataset's field profiles: the five built-ins (title, name, category, code, text) and its own, each a searched field's `tolerance`, `rerankWeight` and pattern setup under one name, with the fields that have it |
 | PUT | `fields/profiles` | profiles | Change or add profiles; their values are written onto the fields that have them, as `PUT fields/configuration` would → `204` or `202` |
 
-`PUT fields/configuration` checks the whole request first; a refused one is `400` and changes nothing. Before the dataset is indexed it always answers `204`. On a `Ready` dataset a change that needs the index rebuilt answers `202`: the rebuild runs in the background on a shadow engine and the old configuration serves until the swap. Poll `GET status` until `shadowBuildInProgress` is `false`, then check `shadowBuildError` (`null` = the new configuration is in use). During a rebuild another configuration change, `POST index` or a bulk document change gets `409 shadowBusy`.
+`PUT fields/configuration` checks the whole request first; a refused one is `400` and changes nothing. Before the dataset is indexed it always answers `204`. On a `Ready` dataset a change that needs the index rebuilt answers `202`: the rebuild runs in the background on a shadow engine and the old configuration serves until the swap. Poll `GET status` until `shadowBuildInProgress` is `false`, then check `shadowBuildError` (`null` = the new configuration is in use). During a rebuild every change to the dataset gets `409 shadowBusy`: another configuration change, `POST index`, a bulk document change, one document (`POST`/`PUT`/`PATCH`/`DELETE documents/{key}`) and `PUT synonyms`. The rebuild works on a clone and swaps it in, so a change applied to the live engine meanwhile would be lost at the swap; retry when `shadowBuildInProgress` is `false`.
 
 A vector field (`embeddable: true`) must be an array of numbers and can have no other role.
 
