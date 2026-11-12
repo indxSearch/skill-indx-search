@@ -237,7 +237,7 @@ the author's record).
 | GET | `documents/{documentKey}/cold/{name}` | — | One item with its content |
 | GET | `documents/{documentKey}/cold` | — | The record's items, without content |
 | DELETE | `documents/{documentKey}/cold/{name}` | — | Delete one item → `204` |
-| PUT | `cold` | items, each with `recordKey` and `name` | A sync's batch; `?prune=true` also deletes what the same key wrote before and did not send now, nobody else's |
+| PUT | `cold` | items, each with `name` and the record as `recordKey` (its Indx key) or `id` (the sender's own id: what the dataset's webhook sends, often Sanity's `_id`, or the key as text) | A sync's batch; `?prune=true` also deletes what the same key wrote before and did not send now, nobody else's. An `id` no record has refuses that item with why; each outcome carries its `id` |
 
 `visibility`: `public` (a page may show it), `answer` (Search or ask's answer may use it, a browser
 never), `private` (the default: customer data). Who reads what:
