@@ -391,7 +391,7 @@ Full (with defaults shown; send only what the search must decide, see below):
   "mode": "EditDistance",
   "match": { "tolerance": "TwoEdits", "rungs": "Fewest", "oneEditFrom": 3, "twoEditsFrom": 6, "threeEditsFrom": 9,
              "cursorAt": null, "typingPrefixFrom": 3, "typingPrefixOneEditFrom": 6, "joinedWords": true },
-  "candidates": { "candidatesPerRow": 4, "maxCandidates": null, "indexTerms": "Both", "fallback": true, "rest": false,
+  "candidates": { "candidatesPerRow": 4, "maxCandidates": null, "minCandidates": 100, "indexTerms": "Both", "fallback": true, "rest": false,
                   "fillReach": 0, "fillWithMostWords": false },
   "ranking": { "rerank": true, "share": 0.2, "typingShift": 0.5, "longFieldFrom": 200, "longFieldWeightFloor": 0,
                "wholeQueryFloor": true, "fieldWeights": null, "fieldBoosts": null,
@@ -430,7 +430,7 @@ The v5 members (`enableCoverage`, `coverageDepth`, `coverageSetup`, `enableBoost
 
 - `candidates` — every record holding the query's words on the first rung with hits (exactly, else
   one edit, else two) is counted, `toleranceCounts` in the result, never capped. The best of them up
-  to the bound are ranked: the rows times `candidatesPerRow` (4), at least 100 and at most 5 000, or `maxCandidates` outright;
+  to the bound are ranked: the rows times `candidatesPerRow` (4), at least `minCandidates` (100) and at most 5 000, or `maxCandidates` outright;
   `count` above `ranked` says the bound was reached. `fallback: false` returns an empty list when nothing is
   counted, instead of the most words then pattern matches (`isFallback`), and `count` is then 0. `rest: true` (EditDistance)
   adds BM25F's best records not counted below the counted ones, up to the bound, counted in
