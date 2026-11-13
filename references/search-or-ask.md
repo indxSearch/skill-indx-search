@@ -36,7 +36,7 @@ Do **not** propose it for a dataset of identifiers or codes. Low question volume
 | `enabled` | `false` | |
 | `kind` | `documentation` | `documentation` or `catalogue` |
 | `siteDescription` | a sentence naming the dataset | One or two sentences: who reads, what the records hold. Every judgement and answer reads it |
-| `titleField`, `sectionFields`, `snippetFields` | automatic | What the judge reads of a result. Snippets are prose, never identifiers or URLs |
+| `titleField`, `sectionFields`, `snippetFields` | title: the highest-weighted searchable field; section: none; snippet: the next two | What the judge reads of a result. Set the section on every catalogue: see *What the judge reads* below |
 | `filterNotes` | none | Catalogue: what a value means, one per line (`barneskole: grades 1 to 7`) |
 | `knowledge` | none | Markdown facts no record holds (scope, what a rating means, VAT, delivery). Answers may state it as "the site says"; never read by the judge; 8,000 characters max. A Search key reads the settings **without** it |
 | `answers` | `best` | `best` (the instance's stronger model) or `fast` (about 1/20 of the cost) |
@@ -64,6 +64,23 @@ Do **not** propose it for a dataset of identifiers or codes. Low question volume
 | `proactive` | Inviting, and the answer starts on its own once the offer is strong, `finished` passes its threshold and the visitor has been still a second |
 
 Recommend `soft` unless the user asks otherwise. `proactive` spends an answer per finished question nobody clicked for: suggest it for documentation with a budget to match, not for a catalogue. A page can choose its own mode (`useSearchOrAsk({ mode })`), such as `strict` on a checkout page; `proactive` applies only where the dataset is set to it.
+
+### What the judge reads of a result
+
+The judge sees five results, each as its title, its section (the section fields' values joined by `; `, a list's items by `, `, never cut) and its snippet (the snippet fields as one line, cut at 240 characters). It can tell a list that holds what the visitor means from one that only shares the words only when what the visitor names is in front of it.
+
+**The rule for `sectionFields`: the short facts visitors name besides the item's name.** A field belongs there when visitors' requests name its values ("who wrote", "gray", "private schools") and the title does not already show them.
+
+- **Find them in the search statistics** where the dataset has real searches: run the most frequent searches with `enableMatchReport` and see which fields their words land on, besides the title. Without statistics, imagine the visitors and what they would ask.
+- **When unsure, include the field.** A missing field costs a lot, an unneeded one little or nothing, and the judge's time does not change measurably. Tested on films, furniture and schools (Nov 2026): on furniture, colour, material and style in the section raised how well the judge told right lists from wrong ones from 0.72 to 0.94 (area under the curve).
+- **Values that read on their own.** The judge sees values without field names, so codes and ids tell it nothing. A true/false field is shown as its name when true and left out when false, so it works when the name reads (`isPrivateSchool`, `upholstered`), not when it is cryptic (`flag2`).
+- **Not the same thing twice** (a category and a class holding the same value).
+- **A list of short items can go in whole** (ten names); leave out a list of hundreds.
+- **In the section, not the snippet**: the snippet is cut at 240, so a field after a long description is not read.
+
+**`snippetFields`: the prose**, longest first. Never identifiers, URLs or codes. **`titleField`**: the name a visitor would recognise.
+
+For example, on a film site where visitors ask who made a film and who is in it: section `genres`, `release_year`, `director`, `writers`, `actors`, snippet `description`. On a shop where they search by colour and material: section `class`, `color`, `material`, `style`, snippet `description`.
 
 ### Catalogue fields
 
