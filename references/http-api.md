@@ -193,7 +193,7 @@ The individual role setters (`PUT fields/searchable` / `fields/filterable` / `fi
 | POST | `index` | — | Start indexing → `202 Accepted` at once with the status body; the build runs in the background. First build: poll `GET status` until Ready. On a Ready dataset it is a rebuild on a shadow engine: poll until `shadowBuildInProgress` is `false`, then check `shadowBuildError` |
 | POST | `search` | `QueryProxy` | Full-text search → `Result` |
 | POST | `search/multi` | `QueryProxy[]` | Up to 20 searches in one call, answered in the order sent; each answer carries its `queryId`, a failed one is `{ status, error }` in its place. What an InstantSearch page asks at once: its list and each ticked OR facet's counts without that facet's own filter. Each search may carry `count`, `source`, `session` in its body, over the query string's, so only the visitor's search is counted |
-| POST | `search/groups` | `{ …search, groups: [{ name, filter?, rows, countFilter?, candidates?, ranking?, match?, primary? }] }` | One text answered in named sections, each ranked within its own filter (ANDed with the search's), with its own rows and count: books, authors and events of a search box in one call. → `{ groups: { name: result }, queryId }`; one search in the statistics, the `primary` section's (else the first). `countFilter` counts by another filter than the section lists by |
+| POST | `search/groups` | `{ …search, groups: [{ name, filter?, rows, countFilter?, candidates?, ranking?, match?, primary? }] }` | One text answered in named sections, each ranked within its own filter (ANDed with the search's), with its own rows and count: books, authors and events of a search box in one call. → `{ groups: { name: result }, queryId }`; one search in the statistics, the `primary` section's (else the first). `countFilter` counts by another filter than the section lists by; then `count` is `countFilter`'s, a real count even when `isFallback` (which describes the list) is set |
 | POST | `search/vector` | `VectorQueryProxy` | Embedding nearest-neighbour search → `EmbeddingResultEntry[]` |
 | POST | `search/hybrid` | `HybridQueryProxy` | Blended text + vector search → `EmbeddingResultEntry[]` |
 | POST | `documents/lookup` | `long[]` (document keys) | Retrieve full JSON records → `string[]`; `?start=&length=` for a part. A search with `includeDocuments: true` returns them itself |
@@ -432,7 +432,7 @@ The v5 members (`enableCoverage`, `coverageDepth`, `coverageSetup`, `enableBoost
   one edit, else two) is counted, `toleranceCounts` in the result, never capped. The best of them up
   to the bound are ranked: the rows times `candidatesPerRow` (4), at least `minCandidates` (100) and at most 5 000, or `maxCandidates` outright;
   `count` above `ranked` says the bound was reached. `fallback: false` returns an empty list when nothing is
-  counted, instead of the most words then pattern matches (`isFallback`), and `count` is then 0. `rest: true` (EditDistance)
+  counted, instead of the most words then pattern matches (`isFallback`), and `count` is then 0. With the fallback on and `isFallback` set, `count` is how many hold the most of the words, not a hit count: show none. `rest: true` (EditDistance)
   adds BM25F's best records not counted below the counted ones, up to the bound, counted in
   `toleranceCounts.rest`. `fillReach` (0 to 2) and `fillWithMostWords` fill a page the counted
   records leave short, from the next rung and then the records holding the most words, each in a
