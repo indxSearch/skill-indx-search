@@ -468,7 +468,7 @@ The v5 members (`enableCoverage`, `coverageDepth`, `coverageSetup`, `enableBoost
   same, and its `facetStats` keep the whole span. A bad expression → `400 invalidFilterExpression`.
 - `collapseBy` — `["bookTitle"]`: one record per value (of several fields: per combination), the
   first in the ranking kept, nothing moved; `offset` counts the records kept. `count` and the facets
-  count records. The fields need a role and may not be arrays (else a `reason`).
+  count records; a record with none of the fields, or null, stands alone. The fields need a role and may not be arrays (else a `reason`).
 
 `sortBy` — field name as a **string** (e.g. `"price"`).
 
