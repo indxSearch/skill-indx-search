@@ -400,6 +400,8 @@ Full (with defaults shown; send only what the search must decide, see below):
   "enableMatchReport": false,
   "measureFit": false,
   "collapseBy": null,
+  "facetSelections": null,
+  "facetRanges": null,
   "counts": null,
   "sortBy": null,
   "sortAscending": false,
@@ -459,6 +461,11 @@ The v5 members (`enableCoverage`, `coverageDepth`, `coverageSetup`, `enableBoost
   `records` (null for one deleted since): one call instead of a search and a `documents/lookup`.
   `includeFields: ["card", "id"]` keeps only those top-level fields of each record; it must hold
   the fields of `collapseBy` (else `400 invalidArgument`).
+- `facetSelections` — `{ "formats": ["Lydbok"], "languages": ["Bokmål", "Nynorsk"] }`: the list holds
+  every selection (OR within a field, AND between); each selected field's facet is counted without its
+  own selection, the rest with all. Facetable fields only. `facetRanges` — `{ "publishedYear":
+  "publishedYear >= 2010" }`, a filter expression on that field alone (facetable and filterable): the
+  same, and its `facetStats` keep the whole span. A bad expression → `400 invalidFilterExpression`.
 - `collapseBy` — `["bookTitle"]`: one record per value (of several fields: per combination), the
   first in the ranking kept, nothing moved; `offset` counts the records kept. `count` and the facets
   count records. The fields need a role and may not be arrays (else a `reason`).
