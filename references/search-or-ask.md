@@ -36,7 +36,7 @@ Do **not** propose it for a dataset of identifiers or codes. Low question volume
 | `enabled` | `false` | |
 | `kind` | `documentation` | `documentation` or `catalogue` |
 | `siteDescription` | a sentence naming the dataset | One or two sentences: who reads, what the records hold. Every judgement and answer reads it |
-| `titleField`, `sectionFields`, `snippetFields` | title: the highest-weighted searchable field; section: none; snippet: the next two | What the judge reads of a result. Set the section on every catalogue: see *What the judge reads* below |
+| `titleField`, `sectionFields`, `snippetFields` | chosen from a sample of the records (`effective`) | What the judge reads of a result. Automatic follows the rule in *What the judge reads* below; override it when visitors ask about a field it left out |
 | `filterNotes` | none | Catalogue: what a value means, one per line (`barneskole: grades 1 to 7`) |
 | `knowledge` | none | Markdown facts no record holds (scope, what a rating means, VAT, delivery). Answers may state it as "the site says"; never read by the judge; 8,000 characters max. A Search key reads the settings **without** it |
 | `answers` | `best` | `best` (the instance's stronger model) or `fast` (about 1/20 of the cost) |
@@ -69,7 +69,9 @@ Recommend `soft` unless the user asks otherwise. `proactive` spends an answer pe
 
 The judge sees five results, each as its title, its section (the section fields' values joined by `; `, a list's items by `, `, never cut) and its snippet (the snippet fields as one line, cut at 240 characters). It can tell a list that holds what the visitor means from one that only shares the words only when what the visitor names is in front of it.
 
-**The rule for `sectionFields`: the short facts visitors name besides the item's name.** A field belongs there when visitors' requests name its values ("who wrote", "gray", "private schools") and the title does not already show them.
+**Automatic** (the fields left unset) reads a sample of the records: the title is the highest-weighted searched field, the snippet the prose (long sentences, at most two, none when there is none), the section up to six short facts ranked by their roles, never codes, a number only as a year, nothing nearly every record has, nothing another field already says. Measured as good as fields chosen by hand on films, furniture and schools. Read `effective` to see what it chose, and set the fields only to change that.
+
+**The rule for `sectionFields`, Automatic's or yours: the short facts visitors name besides the item's name.** A field belongs there when visitors' requests name its values ("who wrote", "gray", "private schools") and the title does not already show them.
 
 - **Find them in the search statistics** where the dataset has real searches: run the most frequent searches with `enableMatchReport` and see which fields their words land on, besides the title. Without statistics, imagine the visitors and what they would ask.
 - **When unsure, include the field.** A missing field costs a lot, an unneeded one little or nothing, and the judge's time does not change measurably. Tested on films, furniture and schools (Nov 2026): on furniture, colour, material and style in the section raised how well the judge told right lists from wrong ones from 0.72 to 0.94 (area under the curve).
