@@ -197,7 +197,7 @@ words and stays out of the word lookup, so it orders records but does not count 
 | `WordMatcherSetup` (the fourth argument of `ConfigurationParameters`) | gone. That argument is now `CompoundSetup`; pass `CompoundSetup.Default` |
 | `new WordMatcherSetup()` (fuzzy matching off) | per search `Match.Tolerance = Tolerance.Exact`, or per field `Field.Tolerance = Tolerance.Exact` |
 | `WordMatcherSetup.Default` (one edit and affixes) | the defaults: up to two edits by length, capped by each field's `Tolerance` (one edit by default) |
-| `WordMatcherSetup.SupportAffix` ("fish" finds "fishing") | the word being typed is matched as the start of a longer word (`Match.TypingPrefixFrom`, 3); a finished word is not. Compound words are linked to their parts by `CompoundSetup` ("ost" finds "brunost") |
+| `WordMatcherSetup.SupportAffix` ("fish" finds "fishing") | the word being typed is matched as the start of a longer word (`Match.TypingPrefixFrom`, 2); a finished word is not. Compound words are linked to their parts by `CompoundSetup` ("ost" finds "brunost") |
 | `ConfigurationParameters.With(wordMatcherSetup: …)` | `With(compoundSetup: …)`, `With(scoringSetup: …)` |
 | `new IndexerSetup(indexSizes, numberOfStartCharacters, numberOfStopCharacters, stopTermLimit, doCaseSensitiveSearching, maxIndexTextLength, maxSearchTextLength, …)` | `new IndexerSetup(stopTermLimit, doCaseSensitiveSearching, maxIndexTextLength, maxSearchTextLength)`; the sizes are per field (section 4) |
 | `new TokenizerSetup(delimiters, highResolutionMode, minimumWordSize)` | `new TokenizerSetup(delimiters, minimumWordSize)` |

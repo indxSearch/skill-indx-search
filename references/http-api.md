@@ -391,7 +391,7 @@ Full (with defaults shown; send only what the search must decide, see below):
   "maxNumberOfRecordsToReturn": 30,
   "mode": "EditDistance",
   "match": { "tolerance": "TwoEdits", "rungs": "Fewest", "oneEditFrom": 3, "twoEditsFrom": 6, "threeEditsFrom": 9,
-             "cursorAt": null, "typingPrefixFrom": 3, "typingPrefixOneEditFrom": 6, "joinedWords": true },
+             "cursorAt": null, "typingPrefixFrom": 2, "typingPrefixOneEditFrom": 6, "joinedWords": true },
   "candidates": { "candidatesPerRow": 4, "maxCandidates": null, "minCandidates": 100, "indexTerms": "Both", "fallback": true, "rest": false,
                   "fillReach": 0, "fillWithMostWords": false },
   "ranking": { "rerank": true, "share": 0.2, "typingShift": 0.5, "longFieldFrom": 200, "longFieldWeightFloor": 0,
