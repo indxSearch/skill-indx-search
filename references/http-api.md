@@ -392,7 +392,7 @@ Full (with defaults shown; send only what the search must decide, see below):
   "mode": "EditDistance",
   "match": { "tolerance": "TwoEdits", "rungs": "Fewest", "oneEditFrom": 3, "twoEditsFrom": 6, "threeEditsFrom": 9,
              "cursorAt": null, "typingPrefixFrom": 2, "typingPrefixOneEditFrom": 6, "joinedWords": true },
-  "candidates": { "candidatesPerRow": 4, "maxCandidates": null, "minCandidates": 100, "indexTerms": "Both", "fallback": true, "rest": false,
+  "candidates": { "candidatesPerRow": 4, "maxCandidates": null, "minCandidates": 100, "noFallbackForNumbersFrom": 0, "indexTerms": "Both", "fallback": true, "rest": false,
                   "fillReach": 0, "fillWithMostWords": false },
   "ranking": { "rerank": true, "share": 0.2, "typingShift": 0.5, "longFieldFrom": 200, "longFieldWeightFloor": 0,
                "wholeQueryFloor": true, "fieldWeights": null, "fieldBoosts": null,
@@ -433,7 +433,9 @@ The v5 members (`enableCoverage`, `coverageDepth`, `coverageSetup`, `enableBoost
   one edit, else two) is counted, `toleranceCounts` in the result, never capped. The best of them up
   to the bound are ranked: the rows times `candidatesPerRow` (4), at least `minCandidates` (100) and at most 5 000, or `maxCandidates` outright;
   `count` above `ranked` says the bound was reached. `fallback: false` returns an empty list when nothing is
-  counted, instead of the most words then pattern matches (`isFallback`), and `count` is then 0. With the fallback on and `isFallback` set, `count` is how many hold the most of the words, not a hit count: show none. `rest: true` (EditDistance)
+  counted, instead of the most words then pattern matches (`isFallback`), and `count` is then 0.
+  `noFallbackForNumbersFrom: 10` does the same for a query that is one number of 10 or more digits no
+  record holds (an ISBN not in the catalogue); the number's field must be `wordMatching`. With the fallback on and `isFallback` set, `count` is how many hold the most of the words, not a hit count: show none. `rest: true` (EditDistance)
   adds BM25F's best records not counted below the counted ones, up to the bound, counted in
   `toleranceCounts.rest`. `fillReach` (0 to 2) and `fillWithMostWords` fill a page the counted
   records leave short, from the next rung and then the records holding the most words, each in a
@@ -467,6 +469,7 @@ The v5 members (`enableCoverage`, `coverageDepth`, `coverageSetup`, `enableBoost
   own selection, the rest with all. Facetable fields only. `facetRanges` — `{ "publishedYear":
   "publishedYear >= 2010" }`, a filter expression on that field alone (facetable and filterable): the
   same, and its `facetStats` keep the whole span. A bad expression → `400 invalidFilterExpression`.
+- (fields/configuration) `textRules` — a field's own string rules before the engine's, e.g. `[{"from":"-","to":""},{"from":" ","to":""}]` for an ISBN or code field: one word in the index and the query however written. `[]` the engine's again. In effect at the next load (a rebuild). Send such codes without separators in the query.
 - `collapseBy` — `["bookTitle"]`: one record per value (of several fields: per combination), the
   first in the ranking kept, nothing moved; `offset` counts the records kept. `count` and the facets
   count records; a record with none of the fields, or null, stands alone. The fields need a role and may not be arrays (else a `reason`).
