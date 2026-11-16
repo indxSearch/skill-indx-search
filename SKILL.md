@@ -323,6 +323,18 @@ When a user applies filters, some facet values may drop to 0 hits and disappear 
 
 Support an empty search state (`allowEmptySearch`) that returns all documents with facets and sorting. This lets users browse and filter before typing anything — useful for catalogue-style interfaces. Requires `enableFacets: true` and at least one facetable field.
 
+### A search field for a long facet
+
+A facet with thousands of values (actors, authors, brands) lists only its commonest, and a visitor
+looking for one of the rest has nowhere to go. Give such a panel its own search field, send what is
+typed to `POST …/facets/{field}/search` with the panel's own values for the current search
+(`values`, up to 3,000), and show the matches with the panel's counts. Indx matches the values with
+its own matching, typos and word starts included, so "tom hnks" finds Tom Hanks, which a regular
+expression over the values does not. No debounce, as for the main search. When the visitor ticks a
+value from that answer, send `?pickField=&pickValue=&pickText=` (and `&pickFallback=true` when the
+answer was the fallback) with the search the tick makes, so Statistics shows the pick in the visit's
+journey. intrface's `ValueFilterPanel` does all of this (`searchable`, on by default from 50 values).
+
 ### Facet debouncing
 
 When doing search-as-you-type, search results need no debounce (Indx is fast enough to fire on every keystroke). But facet counts jumping on every character is noisy — debounce facet requests (e.g. 500ms) while keeping result updates immediate.
