@@ -92,33 +92,42 @@ The judge's filters and the agent work from **Filterable** fields. A text field 
 
 ## Front end with intrface (`@indxsearch/intrface` 4.0+, for the Indx 6 server)
 
-```tsx
-import { SearchProvider, SearchInput, SearchResults, AskPanel, useSearchOrAsk, useFilterSuggestion } from '@indxsearch/intrface';
+Three ready-made shapes; recommend one before wiring parts by hand. All go inside `<SearchProvider url team dataset preAuthenticatedToken={SEARCH_KEY}>`, follow the dataset's mode, and are an ordinary search where Search or ask is off.
 
-function Search() {
-  const sor = useSearchOrAsk();                         // settings, judge on pause
-  const suggestion = useFilterSuggestion({ auto: sor }); // a catalogue's filters on the list
-  const [question, setQuestion] = useState<string | null>(null);
-  const [proactive, setProactive] = useState(false);
-  return (
-    <>
-      <SearchInput searchOrAsk={sor}
-        onAsk={(text, how) => { setQuestion(text); setProactive(!!how?.proactive); }} />
-      {question && <AskPanel question={question} proactive={proactive} followUps onFilters={suggestion.apply} />}
-      <SearchResults fields={['title', 'description']} searchOrAsk={sor} />  {/* lists a catalogue answer's picks on its own */}
-    </>
-  );
-}
-// inside <SearchProvider url team dataset preAuthenticatedToken={SEARCH_KEY}>
+| Shape | For | Asking |
+|---|---|---|
+| `SearchPage` | a whole search page: title, filters left, field + results right, no background | switches to a full-width ask mode (field and filters hidden, picks under the answer); *Back to search* puts the question back in the field |
+| `SearchOrAsk` | a search component inside the customer's page | a column beside the results, two buttons switching Filters / Assistant; the list becomes the picks |
+| `AskChat` | a help or docs site | a launcher in the corner opens a chat window; `actions` for "Talk to a person" |
+
+```tsx
+<SearchPage title="Films" filters={<ValueFilterPanel field="genres" label="Genres" />}
+            renderResult={item => <h3>{item.title}</h3>} examples={['Films about grief']} />
+```
+
+`SearchPage`/`SearchOrAsk` share `filters`, `renderResult`, `examples`, `results` (SearchResults' other props), `restore` (the page's own start, rerun when Clear takes off an order the assistant set), `words`, `labels`, `mode`.
+
+A page of its own, from the parts:
+
+```tsx
+const sor = useSearchOrAsk();                    // settings, judge on pause
+const flow = useAskFlow({ searchOrAsk: sor });   // asking, the wait, typing back, Clear
+<SearchInput askOffer="door" {...flow.inputProps} />
+{flow.offerShown && <AskOffer searchOrAsk={sor} onAsk={flow.ask} />}
+{flow.question && <AskPanel key={flow.run} {...flow.panelProps} followUps />}
+{!flow.waiting && <SearchResults fields={['title', 'description']} searchOrAsk={sor} />}
 ```
 
 - Where Search or ask is off or unavailable, `useSearchOrAsk` stays quiet and the page is an ordinary search: safe to ship before it is enabled.
-- `AskPanel fill` takes its container's height (a panel beside the results); `SearchInput askOffer="below"` puts the offer under the field.
-- `SearchInput` follows the dataset's mode; in `proactive` it calls `onAsk(text, { proactive: true })` on its own. Pass `proactive` on to `AskPanel` so the statistics count those answers apart.
-- `QuickAnswer` draws the offer as a row above the results (the hint, the full offer, or proactive's "Thinking"). Give `SearchInput` `askOffer="none"` beside it, so the offer shows once.
+- Two surfaces, one job each: `SearchInput askOffer="door"` is a quiet *Ask* in the field wherever asking is allowed, same words always; `AskOffer` is the row above the results, only for the early hint, the sure offer (`offerKind`: a question, not among the results, a description to explore) or *Thinking* before a proactive answer. `words` rewords it per offer. Enter asks on the sure offer only, otherwise searches. Default `askOffer="chip"` keeps the whole offer in the field, for a page without `AskOffer`.
+- `useAskFlow` waits after asking for the answer and then for the search with the filters it read, until the list settles, so the question's own list does not flash first. Without it, wire `onAsk`, `proactive` and `useFilterSuggestion` yourself.
+- `useSearchOrAsk` exposes `door`, `offerRow`, `offerKind`, `enterAsks` for a page drawing its own surfaces.
+- `AskPanel fill` takes its container's height; `showSearched={false}` leaves out what the answer searched with.
+- In `proactive` the field starts the answer on its own; `useAskFlow` passes `proactive` on so the statistics count those answers apart.
 - On a catalogue with several searches, the answer's picks (the records it chose, each with `why`) become the list by themselves: `AskPanel` puts them on the provider, `SearchResults` lists them, `SearchInput` drops Nearest and No results. Typing, Clear or a new conversation gives the list back. Not for a proactive answer; `listPicks={false}` keeps them in the panel, `onPicks` reports them.
 - `SearchResults searchOrAsk={sor}` never cuts the list; it dims it, with a line above, when the judge reads what is asked about as not in it (`sor.notFound`).
 - While asking is held (`sor.held`: the day's budget spent, or the provider refusing answers, reason `paused`) nothing is offered in any mode and Enter searches. `AskPanel` shows nothing for a refused proactive start, and "No more answers today" for a spent budget.
+- Deprecated, still working: `QuickAnswer` (use `AskOffer`), `askOffer="below"` (use `"door"`), `sor.quick` and `sor.askAnytime`.
 - **Use a Search key in the browser.** Never a Read or Full key.
 
 ---

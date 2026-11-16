@@ -253,7 +253,7 @@ Indx Server can let the search field answer questions as well. On each typing pa
 - **Three switches:** a model key on the instance, "Search or ask" shown on the dataset (a team admin), and `enabled` in its settings (an editor). Typed text then goes to the model providers: the site's privacy notice must say so.
 - **Mode** (`mode`): `strict`, `soft` (default), `open`, `inviting` or `proactive`, from only offering once sure to starting the answer on its own. Keep `soft` unless asked; `proactive` costs an answer per finished question.
 - **Settings** worth setting: `siteDescription`, `knowledge` (markdown facts no record holds, which answers may state), and `filterNotes` on a catalogue. Make the fields questions are about Filterable and Facetable.
-- **Front end:** with intrface, `useSearchOrAsk()` plus `onAsk`/`searchOrAsk` on `SearchInput` and an `AskPanel`; it stays quiet where the feature is off. Over HTTP: `intent` on a pause, `ask` as server-sent events. A Search key covers all of it.
+- **Front end:** with intrface, a ready-made shape: `SearchPage` (a whole search page), `SearchOrAsk` (a component in a page) or `AskChat` (a support chat); or `useSearchOrAsk()` + `useAskFlow()` with `SearchInput`, `AskOffer` and `AskPanel` for a page of your own. It stays quiet where the feature is off. Over HTTP: `intent` on a pause, `ask` as server-sent events. A Search key covers all of it.
 
 Setup, every setting, the API and the pitfalls: [references/search-or-ask.md](references/search-or-ask.md).
 
