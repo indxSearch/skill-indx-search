@@ -61,7 +61,7 @@ Every error is an [RFC 9457 ProblemDetails](https://www.rfc-editor.org/rfc/rfc94
 | Status | `code` | Meaning | What to do |
 |--------|--------|---------|------------|
 | `400` | `invalidArgument` | Missing/invalid body or argument | Fix the request; don't retry as-is |
-| `400` | `invalidDatasetName` | The dataset name itself is not allowed | Keep names to letters, digits, `.`, `-` and `_` (`gyldendal.no` is fine); no `/` or other path characters |
+| `400` | `invalidDatasetName` | The dataset name itself is not allowed | Keep names to letters, digits, `.`, `-` and `_` (`shop.example.com` is fine); no `/` or other path characters |
 | `400` | `loadFailed` | The JSON payload could not be loaded/analyzed (parse error, key-field violation) | Fix the data; the dataset's previous documents are untouched on `replace` |
 | `400` | `operationFailed` | A server-side step failed cleanly (index build, shadow build, wake-up) | Read `detail`; retrying may work after fixing the cause |
 | `400` | `unknownFilter` | A referenced filter `hashString` could not be resolved | Re-create the filter and retry with the new token — never retry without the filter |
