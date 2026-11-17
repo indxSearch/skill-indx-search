@@ -188,6 +188,7 @@ Indx has no per-language tokenizer, stemmer or stop-word list, and does not need
 - **Typos and spelling variants**: one edit from three letters, two from six (`Match.Tolerance`, `OneEditFrom`, `TwoEditsFrom`), three from nine with `Tolerance.ThreeEdits`.
 - **Words being typed**: the word at the cursor is matched as the start of a longer word (*bok* finds *bokhandel* while typing). A finished word is matched whole. In a field with `PatternMatching`, any part of a word matches too, ranked below whole words.
 - **Compound words (sammensatte ord)**: a compound is linked to its parts when the index is built (`CompoundSetup`, on by default), so *ost* finds *brunost* and *geitost*, *hvitløksmør* finds records holding *hvitløk smør*, and two query words find the compound they make. Words typed together or apart match too (`Match.JoinedWords`). No dictionary is involved.
+- **Accents and national letters**: folded before matching, *é* as *e*, *å* as *a*, one-way by default: *gra* finds *grå*, and *grå* still means *grå*. Dashes, quotes and odd spaces are read as plain ones, and invisible characters removed. See *Text rules* below to change it.
 - **Domain vocabulary**: synonyms, editable by editors without code (next section).
 
 So on a "stemming" checklist: Indx does not ship a stemmer. Inflections that share a beginning with the base are met while typing and by pattern; an irregular form that shares little with its base (*bok* and *bøker*, *mouse* and *mice*), or an inflection on a field matched by words only, is where a synonym entry is the answer.
@@ -203,6 +204,15 @@ A per-dataset synonym list gives query words alternatives: no re-indexing, effec
 - **C#**: `engine.SynonymList` / `LoadSynonyms(path)` / `SaveSynonyms(path)`.
 
 A query word (or run of words) with an entry is held through the words as typed **or** any of the entry's terms, so a synonym widens the counted set: "war film" with *film ↔ movie* also counts the war movies. A record holding a word only through a synonym ranks below those with the typed word on its rung (`ToleranceCounts.ThroughSynonym`). Details: [references/csharp.md](references/csharp.md#synonyms), [references/http-api.md](references/http-api.md#synonyms).
+
+### Text rules
+
+How text is read before it is matched, in the index and in the query alike. Built into the index, so a change rebuilds it (in the background on the Indx server, the old index serving until the new one is in).
+
+- **A field's own replacements** (`FieldProxy.TextRules`, over HTTP `textRules` in `fields/configuration` and in a field profile): strings replaced in that field, `{"from": "-", "to": ""}`. With `keepOriginal: true` the field is indexed both with and without the rule, so a code is found however it is written: *978-0-306-40615-7*, *9780306406157*, or a part such as *40615*. Written in lower case, since the text is lower-cased first.
+- **A dataset's replacements and folds** (Indx server, web console only: Query parameters > Advanced > Text): strings replaced and letters read as other letters in every searched field, over what Indx does by itself, one-way or both ways. Indx's own folds and replacements are listed there and can be **switched off** for the dataset, one by one or a kind of invisible character at a time.
+- **When a letter's fold is wrong for the data**, switch it off rather than adding synonyms. In Norwegian *matte* (maths) and *måtte* (had to) are different words, but Indx reads *å* as *a* by default, so a search for *matte* also counts every *måtte*. Switching off *å* (and *æ*, *ø*) keeps them apart. The dataset must be awake to change this.
+- In C#, the engine's normalizer is `ConfigurationParameters.TextNormalizer` (`TextNormalizer.Default` is the shipped tables), fixed when the engine is built; a field's is `Field.TextNormalizer`, in effect at the next `Load`.
 
 ### Dynamic document operations
 
@@ -393,6 +403,7 @@ with no records means an honest no-match. Full page, kept in step with this list
 | A query of punctuation only (`...`, `..`) returns nothing | By design since IndxSearchLib 5.0.4: no words to search for, so it is refused with a `reason`. Treat it like an empty query |
 | An empty query returns nothing | `enableFacets` missing (and at least one facetable field needed) |
 | The MCP `search` finds nothing but the app's search box finds hits | Not a fault. The MCP tool sets `candidates.fallback=false`; over HTTP `candidates` is usually absent and it defaults to **true**. Pass `broaden: true` to compare like with like (it also adds pattern matches below the hits, `candidates.rest`) |
+| A search for one word also counts a different word with an accented letter (*matte* and *måtte*) | Indx's default folds read *å* as *a*. Switch that fold off for the dataset (Query parameters > Advanced > Text), not a synonym |
 | A field is in results but never matches | It arrived through insert/update and was never indexed — only `replace` can add a field |
 | A configuration call fails with `400 invalidArgument` | It named a field the engine has not discovered — the mirror of the case above |
 | A count is suspiciously round | It equals the candidate bound: read `count` (or `toleranceCounts` by rung), the real count; `count` above `ranked` says the bound was reached |

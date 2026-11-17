@@ -469,7 +469,7 @@ The v5 members (`enableCoverage`, `coverageDepth`, `coverageSetup`, `enableBoost
   own selection, the rest with all. Facetable fields only. `facetRanges` — `{ "publishedYear":
   "publishedYear >= 2010" }`, a filter expression on that field alone (facetable and filterable): the
   same, and its `facetStats` keep the whole span. A bad expression → `400 invalidFilterExpression`.
-- (fields/configuration) `textRules` — a field's own string rules before the engine's, e.g. `[{"from":"-","to":""},{"from":" ","to":""}]` for an ISBN or code field: one word in the index and the query however written. `[]` the engine's again. In effect at the next load (a rebuild). Send such codes without separators in the query.
+- (fields/configuration) `textRules` — a field's own string rules before the engine's, e.g. `[{"from":"-","to":""},{"from":" ","to":""}]` for an ISBN or code field: one word in the index and the query however written. With `"keepOriginal": true` on a rule the field is indexed both with it and without it, so the code is also found with its separators or in part. `[]` the engine's again. In effect at the next load (a rebuild). A field profile carries the same `textRules`. A dataset's own replacements and folds, over every searched field, are set in the web console (Query parameters > Advanced > Text); there is no route for them yet.
 - `collapseBy` — `["bookTitle"]`: one record per value (of several fields: per combination), the
   first in the ranking kept, nothing moved; `offset` counts the records kept. `count` and the facets
   count records; a record with none of the fields, or null, stands alone. The fields need a role and may not be arrays (else a `reason`).
