@@ -347,7 +347,7 @@ journey. intrface's `ValueFilterPanel` does all of this (`searchable`, on by def
 
 ### Facet debouncing
 
-When doing search-as-you-type, search results need no debounce (Indx is fast enough to fire on every keystroke). But facet counts jumping on every character is noisy — debounce facet requests (e.g. 500ms) while keeping result updates immediate.
+When doing search-as-you-type, search results need no debounce (Indx is fast enough to fire on every keystroke). Ask for facet counts in a separate request so the results never wait for them, and keep that request **in flight** rather than on a timer: one counts-only search at a time (`maxNumberOfRecordsToReturn: 0`, `enableFacets: true`), and when it lands, send the next for the current text if it changed. The counts then follow typing a round trip behind, with at most one request outstanding. intrface 4.0 does this by default (`SearchProvider facetTiming="inFlight"`); a debounce (`facetTiming="debounce"`, e.g. 500 ms) is the choice when request volume matters more than fresh counts.
 
 ### Range filters from facet data
 
