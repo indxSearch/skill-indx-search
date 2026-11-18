@@ -404,6 +404,7 @@ with no records means an honest no-match. Full page, kept in step with this list
 | An empty query returns nothing | `enableFacets` missing (and at least one facetable field needed) |
 | The MCP `search` finds nothing but the app's search box finds hits | Not a fault. The MCP tool sets `candidates.fallback=false`; over HTTP `candidates` is usually absent and it defaults to **true**. Pass `broaden: true` to compare like with like (it also adds pattern matches below the hits, `candidates.rest`) |
 | A search for one word also counts a different word with an accented letter (*matte* and *måtte*) | Indx's default folds read *å* as *a*. Switch that fold off for the dataset (Query parameters > Advanced > Text), not a synonym |
+| Some records are never found by a word they hold | The record lacks the searched field (a missing value is not searched), or a value of it is longer than the 100 000 characters a value is indexed to. In the console, *Records > Run scan* lists both, field by field, and opens the records in the table |
 | A field is in results but never matches | It arrived through insert/update and was never indexed — only `replace` can add a field |
 | A configuration call fails with `400 invalidArgument` | It named a field the engine has not discovered — the mirror of the case above |
 | A count is suspiciously round | It equals the candidate bound: read `count` (or `toleranceCounts` by rung), the real count; `count` above `ranked` says the bound was reached |
