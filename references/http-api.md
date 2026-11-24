@@ -448,7 +448,8 @@ The v5 members (`enableCoverage`, `coverageDepth`, `coverageSetup`, `enableBoost
   apply to every search.
 - `enableMatchReport` — the result's `matchReport` says for each returned record how each query
   word was met (`Whole`, `Prefix`, `Suffix`, `Joined`, `RunTogether`, `OneEdit`, `TwoEdits`,
-  `ThreeEdits`, `Synonym`, `NotFound`) and in which field. Costs in proportion to the records returned.
+  `ThreeEdits`, `Synonym`, `NotFound`) and in which field; for `Synonym` also which one (`synonym`,
+  null with the field on 2.0.0-beta.6). Costs in proportion to the records returned.
 - `measureFit` — the result also says how well its first records explain the text
   (`explainedShare`, `unexplainedShare` and the words on either side), for telling a search from a
   question while a visitor types.

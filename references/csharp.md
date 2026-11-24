@@ -308,7 +308,8 @@ Result properties:
 - `Reranked` — whether the reranker ordered the list
 - `MatchReport` — with `Query.EnableMatchReport`: for each returned record how each query word was
   met (`Whole`, `Prefix`, `Suffix`, `Joined`, `RunTogether`, `OneEdit`, `TwoEdits`, `ThreeEdits`,
-  `Synonym`, `NotFound`), in which field it counted, and in `Fields` every field that met it
+  `Synonym`, `NotFound`), in which field it counted, and in `Fields` every field that met it; for
+  `Synonym`, after 6.0.0-rc1, `Synonym` is the one the record holds (null, as the field, in rc1)
 - `Reason` — set when the search was refused (a bad request, a disposed engine), null on a normal
   search including one that matched nothing
 - `DidTimeOut` — `true` when the search could not be **served**, rather than served and found nothing.
