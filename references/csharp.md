@@ -125,7 +125,7 @@ foreach (var field in engine.GetFieldConfiguration())
 }
 ```
 
-`FieldProxy` properties: `FieldName`, `FieldType` ("String"/"Number"/"Boolean"), `IsArray`, `Optional`, `SampleValue`, the roles `WordMatching`, `PatternMatching` (on or off, with `IndexSizes`, `NumberOfStartCharacters` and `NumberOfStopCharacters`, the setup's when on), `Filterable`, `Facetable`, `Sortable`, `Embeddable`, `PreloadFilters`, and `Weight`, `BM25b`, `BM25k1`, `Tolerance`, `RerankWeight`, `TypingPrefixFrom`, `CaseSensitive`. A null property on a set call leaves the value as it is.
+`FieldProxy` properties: `FieldName`, `FieldType` ("String"/"Number"/"Boolean"), `IsArray`, `Optional`, `SampleValue`, the roles `WordMatching`, `PatternMatching` (on or off, with `IndexSizes`, `NumberOfStartCharacters` and `NumberOfStopCharacters`, the setup's when on), `Filterable`, `Facetable`, `Sortable`, `Embeddable`, and `Weight`, `BM25b`, `BM25k1`, `Tolerance`, `RerankWeight`, `TypingPrefixFrom`, `CaseSensitive`. A null property on a set call leaves the value as it is.
 
 **A configuration from `Init` searches nothing**: every field starts with neither `WordMatching` nor `PatternMatching`. Give at least one field `WordMatching`, or no search narrows.
 
@@ -180,7 +180,7 @@ var proposed = new[] { new FieldProxy { FieldName = "category", Facetable = true
 if (engine.DocumentFields.RequiresReload(proposed))
 {
     // Whether a field is searched at all (WordMatching or PatternMatching on or off),
-    // Embeddable, PreloadFilters. Only a Load consumes these. Applying one in place returns the engine to Created,
+    // Embeddable. Only a Load consumes these. Applying one in place returns the engine to Created,
     // and searches then fail with a reason rather than answering as if the field were empty.
 }
 else if (engine.DocumentFields.RequiresReindex(proposed))

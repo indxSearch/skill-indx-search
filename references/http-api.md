@@ -371,7 +371,7 @@ dataset *name*, matching how document keys are yours. Deleting the dataset does 
 ```
 
 All fields are optional (null = unchanged). Available properties:
-`fieldName`, `fieldType`, `isArray`, `optional`, `sampleValue`, `wordMatching` (matched by whole words, within the field's `tolerance`; counts), `patternMatching` (matched inside words; with `indexSizes`, `numberOfStartCharacters`, `numberOfStopCharacters`, default `[3]`, 2, 0), `filterable`, `facetable`, `sortable`, `embeddable`, `preloadFilters`, `weight` (float, default 1.0), `bM25b` (float, 0–1), `bM25k1` (float; refused on a BM25F dataset, which every server dataset is), `tolerance` (`Exact`, `OneEdit` default, `TwoEdits`, `ThreeEdits`), `rerankWeight` (0 leaves the field out of the reranker and the word lookup), `typingPrefixFrom`, `caseSensitive`.
+`fieldName`, `fieldType`, `isArray`, `optional`, `sampleValue`, `wordMatching` (matched by whole words, within the field's `tolerance`; counts), `patternMatching` (matched inside words; with `indexSizes`, `numberOfStartCharacters`, `numberOfStopCharacters`, default `[3]`, 2, 0), `filterable`, `facetable`, `sortable`, `embeddable`, `weight` (float, default 1.0), `bM25b` (float, 0–1), `bM25k1` (float; refused on a BM25F dataset, which every server dataset is), `tolerance` (`Exact`, `OneEdit` default, `TwoEdits`, `ThreeEdits`), `rerankWeight` (0 leaves the field out of the reranker and the word lookup), `typingPrefixFrom`, `caseSensitive`.
 
 **Never send `searchable`.** It is read as `wordMatching` alone, so the field loses pattern matching; send both roles to search a field as v5 did. `wordIndexing` and `highResolution` bind to nothing.
 
