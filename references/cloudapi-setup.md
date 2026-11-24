@@ -134,7 +134,8 @@ Two SQLite databases, auto-created on first run. Schema migrations run automatic
 ### Memory after a build
 
 The runtime keeps the memory an index build took. The server gives it back with one garbage
-collection after a dataset is built or leaves memory (at most one a minute, none under 512 MB).
+collection: after a build in the background when other datasets are serving, after a sleep or a
+delete at once, pausing searches for a moment (at most one a minute, none under 512 MB).
 `MemoryReturn__IntervalSeconds` (5) is how often it looks, `0` turns it off. Each dataset's filter
 cache is limited to 256 MB by default (`PUT …/filter-cache?megabytes=`, or the dataset's Memory
 options in the console).
