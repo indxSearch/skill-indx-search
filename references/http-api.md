@@ -439,7 +439,8 @@ The v5 members (`enableCoverage`, `coverageDepth`, `coverageSetup`, `enableBoost
   adds BM25F's best records not counted below the counted ones, up to the bound, counted in
   `toleranceCounts.rest`. `fillReach` (0 to 2) and `fillWithMostWords` fill a page the counted
   records leave short, from the next rung and then the records holding the most words, each in a
-  band below the counted (`fill` in the result says how many). Facet counts are counted over the
+  band below the counted (`fill` in the result says how many). From the next rung a record comes in
+  with at most one word in three of the query met otherwise than exactly. Facet counts are counted over the
   counted records (and the rest), so they agree with `toleranceCounts`, and fold case.
 - `ranking.boosts` / `ranking.buries` — the tokens from `boosts/from-filter` and
   `buries/from-filter`; a list that is not empty is on. The dataset's saved boost and bury rules
