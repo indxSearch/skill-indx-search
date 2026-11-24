@@ -109,6 +109,7 @@ A `409 invalidState` is returned when an operation is valid but the dataset's `s
 | GET | `/api/teams/{teamName}/datasets` | List datasets owned by one team → `string[]` |
 | PUT | `/api/teams/{teamName}/datasets/{dataSetName}` | Create or open a dataset — `201` created, `200` already existed |
 | GET | `status` | Get dataset status → `CloudSystemStatus` |
+| PUT | `filter-cache?megabytes=` | How many megabytes the dataset's kept filters may take, 0 to 65536 (default 256, or `?filterCacheMB=` on create). A loaded dataset is rebuilt with it → `202`, poll `status` until `shadowBuildInProgress` is `false`; one not loaded takes it on its next load → `204` |
 | GET | `documents/count` | Get document count → `{"count": n}` |
 | DELETE | `/api/teams/{teamName}/datasets/{dataSetName}` | Delete dataset permanently (team Admin) → `204` |
 
@@ -197,7 +198,7 @@ The individual role setters (`PUT fields/searchable` / `fields/filterable` / `fi
 | POST | `search/groups` | `{ …search, groups: [{ name, filter?, rows, countFilter?, candidates?, ranking?, match?, primary? }] }` | One text answered in named sections, each ranked within its own filter (ANDed with the search's), with its own rows and count: books, authors and events of a search box in one call. → `{ groups: { name: result }, queryId }`; one search in the statistics, the `primary` section's (else the first). `countFilter` counts by another filter than the section lists by; then `count` is `countFilter`'s, a real count even when `isFallback` (which describes the list) is set |
 | POST | `search/vector` | `VectorQueryProxy` | Embedding nearest-neighbour search → `EmbeddingResultEntry[]` |
 | POST | `search/hybrid` | `HybridQueryProxy` | Blended text + vector search → `EmbeddingResultEntry[]` |
-| POST | `documents/lookup` | `long[]` (document keys) | Retrieve full JSON records → `string[]`; `?start=&length=` for a part. A search with `includeDocuments: true` returns them itself |
+| POST | `documents/lookup` | array of keys, each a text or a number | Retrieve full JSON records → `string[]`; `?start=&length=` for a part. A search with `includeDocuments: true` returns them itself |
 
 Search responses carry an **`Indx-Query-Id`** header (CORS-exposed): an opaque id minted per
 search when statistics are enabled. Hold it briefly on the client and echo it in the
@@ -313,8 +314,8 @@ counts on the document — it just finds no search to join. All statistics route
 
 | Method | Operation | Body / Query | Description |
 |--------|-----------|--------------|-------------|
-| POST | `events/select` | `{queryId?, documentKey, position, subject?, count?}` | The user chose a result; `position` is 1-based in the list. Search key suffices → `202` |
-| POST | `events/convert` | `{queryId?, documentKey, type, subject?, count?}` | Something valuable happened — `type` is your own name for it (`"order"`, `"addToCart"`). Counted per document, the signal for personalised boosting; `value`/`currency`/`quantity` are accepted but not reported. `queryId` optional: an order may come long after the search. Search key → `202` |
+| POST | `events/select` | `{queryId?, key, position, subject?, count?}` (`key` the result's `key`; `documentKey`, the number, still read) | The user chose a result; `position` is 1-based in the list. Search key suffices → `202` |
+| POST | `events/convert` | `{queryId?, key, type, subject?, count?}` | Something valuable happened — `type` is your own name for it (`"order"`, `"addToCart"`). Counted per document, the signal for personalised boosting; `value`/`currency`/`quantity` are accepted but not reported. `queryId` optional: an order may come long after the search. Search key → `202` |
 | GET | `statistics/overview` | `?days=30` | The window's totals with the rates computed server-side: `uncoveredRate` (searches that counted nothing: no record held every word within the tolerance, so the fallback was shown), `uncoveredChosen` (of those, the ones a result was chosen from anyway), `clickThroughRate` (searches with ≥1 select over ALL searches), `averageClickPosition` — `null` when the denominator is zero, never 0%. `zeroHitRate` stays for compatibility. Read key |
 | GET | `statistics/timeseries` | `?days=30` | One row per day in the dataset's time zone (`date` as `yyyy-MM-dd`), zero rows included so charts have no holes. Read key |
 | GET | `statistics/filters` | `?days&limit` | Browsing: uses and zero-hit count per filter value (`field`, `value`; a range has an empty `value`), with or without text. Read key |
@@ -475,7 +476,7 @@ The v5 members (`enableCoverage`, `coverageDepth`, `coverageSetup`, `enableBoost
   first in the ranking kept, nothing moved; `offset` counts the records kept. `count` and the facets
   count records; a record with none of the fields, or null, stands alone. The fields need a role and may not be arrays (else a `reason`).
 
-`sortBy` — field name as a **string** (e.g. `"price"`).
+`sortBy` — field name as a **string** (e.g. `"price"`). On a text search the records are sorted by it within each tier of relevance, the best matches first; an empty search sorts by it alone.
 
 `ranking.fieldBoosts` — per-query multipliers on each field's configured `weight`:
 ```json
@@ -513,8 +514,8 @@ apply from the next search, no reindex. A search's own values are refused in a `
 ```json
 {
   "records": [
-    { "documentKey": 42, "score": 52000 },
-    { "documentKey": 17, "score": 31000 }
+    { "key": "42", "documentKey": 42, "score": 52000 },
+    { "key": "17", "documentKey": 17, "score": 31000 }
   ],
   "facets": {
     "category": [
@@ -561,7 +562,7 @@ apply from the next search, no reindex. A search's own values are refused in a `
   as `409` with the current state before it gets this far, so on this surface the flag almost always
   means the timeout. Either way, do not render an empty result with this flag set as "no results".
 
-Send `includeDocuments: true` to get the records' JSON with the search, or `POST .../documents/lookup` with the array of `documentKey` values.
+Send `includeDocuments: true` to get the records' JSON with the search, or `POST .../documents/lookup` with the records' `key` values. A key is its key field's value as text (`"42"`, `"sku-17"`); `documentKey` is the number it is held under, the key itself when it is a whole number, and found by the lookup as well.
 
 ### Filter and Boost Models
 
@@ -633,7 +634,7 @@ Send `includeDocuments: true` to get the records' JSON with the search, or `POST
 
 `systemState`, by name: `Created`, `Loading`, `Loaded`, `Indexing`, `Ready`, `Error`. There is no hibernated state: a hibernated dataset reports `Created` with `recordsOnDisk > 0` (the old `-1`=Hibernated is gone).
 
-`GET status` returns `CloudSystemStatus`, which adds cloud-layer fields — most usefully `shadowBuildInProgress` (true while a background rebuild runs), `shadowBuildFinishedUtc` (when the last one ended) and `shadowBuildError` (why it failed, or `null`).
+`GET status` returns `CloudSystemStatus`, which adds cloud-layer fields — most usefully `shadowBuildInProgress` (true while a background rebuild runs), `shadowBuildFinishedUtc` (when the last one ended) and `shadowBuildError` (why it failed, or `null`). `filterCacheFilters`, `filterCacheBytes` and `filterCacheLimitBytes` say what the filters kept between searches take of their limit.
 
 ## HTTP API Workflow
 

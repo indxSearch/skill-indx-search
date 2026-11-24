@@ -124,7 +124,9 @@ counts every level), `Match.CursorAt` and `TypingPrefixFrom` for search-as-you-t
 | (new) | `Result.ToleranceCounts` (`Exact`, `OneEdit`, `TwoEdits`, `ThreeEdits`, `Rest`, `ThroughSynonym`), each level with those below it; null in `Bm25f` |
 | (new) | `Result.CountedTolerance`: the level the list was taken from |
 | (new) | `Result.IsFallback`: no record held every word; the list is the records holding the most of them |
-| (new) | `Result.Reranked`, `Result.Fill`, `Result.MatchReport` (with `Query.EnableMatchReport`) |
+| (new) | `Result.Reranked`, `Result.Fill`, `Result.MatchReport` (with `Query.EnableMatchReport`; each word's `Fields`, every field that met it) |
+| a key had to be a whole number; a record with another key was left out | a key is its key field's value as text (`"0042"`, `"sku-17"`). `ScoreEntry16.Key` is it; `GetJsonDataOfKey(string)`, `DeleteJsonRecord(string)`, `UpdateField(string, …)`, `GetKeyText(long)`, `GetKeyNumber(string)`. Whole-number keys work as before |
+| `SortBy` ordered only records with the same score | the records are sorted by it within each tier of relevance, so on a text search the sort shows |
 
 A client that showed "N hits" or paged with the truncation index reads `Count`, and can split it by
 level: "140 hits, 45 of them with a typo" from `ToleranceCounts`.
@@ -161,6 +163,7 @@ level: "140 hits, 45 of them with a typo" from `ToleranceCounts`.
 | `IndexerSetup.Dense` | `new PatternMatchingSetup([2, 3])` on the fields that need it |
 | `IndexerSetup.SingleWord` (codes, SKUs) | `new PatternMatchingSetup([2, 3], 2, 1)`, or `WordMatching` alone for whole codes |
 | `Field.BM25k1` differing between fields | chooses nothing any more: see `ScoringSetup` (section 5) |
+| `Field.PreloadFilters`, `FieldProxy.PreloadFilters`, `ISearchEngine.PreLoadedFilters` | gone: a value filter is made from the field's index in well under a millisecond when first used, and preloading made every insert slower. A saved configuration or a request that carries it is read without it. For a field's values, ask for its facets |
 
 **To keep v5's matching**, every field that was `Searchable = true` becomes:
 
@@ -203,6 +206,8 @@ words and stays out of the word lookup, so it orders records but does not count 
 | `new TokenizerSetup(delimiters, highResolutionMode, minimumWordSize)` | `new TokenizerSetup(delimiters, minimumWordSize)` |
 | the scoring mode chosen by differing `Field.BM25k1` | `ScoringSetup` in the configuration: `ScoringMode.BM25F` (the default, with `BM25FK1` 1.2) or `ScoringMode.BM25PerField`. In BM25F a field's `BM25k1` is ignored |
 | `TokenizerSetup.MaxSizeOfWordToken` 20 | 100, so long compounds are indexed as words |
+| `ConfigurationParameters`' `filterCacheSize` (entries, 200 000), `FilterCacheSize`, `DefaultFilterCacheSize` | `new SearchEngine(…, filterCacheMB: 256)`: a limit in megabytes, given with the engine. A configuration file that carries the old number still loads |
+| `Hibernate()` and `Unload()` ran `GC.Collect()` | they run none: the memory comes back when the runtime collects, or call `GC.Collect(2, GCCollectionMode.Aggressive, true, true)` yourself. The Indx server does it after a dataset is built or leaves memory |
 
 ```csharp
 // Indx 5: fuzzy matching off for the whole engine
@@ -234,6 +239,9 @@ combination spelled any other way is refused with the key to use. Keys an engine
 before. New, optional: `CreateFilter(expression)` (`brand IN ["nike", "puma"] AND price BETWEEN 100
 AND 2000`), `CreateInFilter`, `CreatePositionFilter`, `CreateCustomFilter`, `CreateDateFilter`,
 `Filter.And` / `Filter.Or` over any number of filters, and `FilterKeyReader`.
+
+For many values on one field, use `CreateInFilter` (`filters/in`): one filter made in one go. A chain
+`a | b | c …` keeps only its last link, so it no longer fills the cache, but it is still slower to make.
 
 ---
 
@@ -279,6 +287,12 @@ sets none, the default.
   **Parameters saved by a v5 server read as none set after the upgrade**: set them again, a
   coverage depth as `candidates.maxCandidates`.
 - **A dataset's stored boost and bury rules apply to every search**, with no flag in the body.
+- **Keys are text**: a result record has `key` beside `documentKey`; the document routes take the key
+  as text, `documents/lookup` an array of texts or numbers, and `events/select` and `events/convert`
+  take `key` (`documentKey` is still read).
+- **`preloadFilters`** in a field configuration is ignored. **`?filterCacheMB=`** on create and
+  **`PUT …/filter-cache?megabytes=`** set how many megabytes the dataset's kept filters may take
+  (256 by default); `GET status` says what they take.
 - **MCP:** `search` returns `total` (the matches in all) beside `count` (the hits returned), and
   `broaden` turns on the rest and the fallback.
 

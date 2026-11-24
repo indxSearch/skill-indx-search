@@ -75,7 +75,8 @@ Init(stream) → TrySetFieldConfiguration(...) → Load(stream) → Index() → 
 
 | Method | Description |
 |--------|-------------|
-| `Hibernate(out string)` | Dispose indexed data to free memory. Searches will timeout. Filters remain usable |
+| `new SearchEngine(license, filterCacheMB: 256)` | How many megabytes the filters kept between searches may take; the least recently used go past it, `0` keeps none. `Status.FilterCacheFilters`, `FilterCacheBytes`, `FilterCacheLimitBytes` say what they take |
+| `Hibernate(out string)` | Dispose indexed data to free memory. Searches will timeout. Filters remain usable. Runs no garbage collection: call `GC.Collect(2, GCCollectionMode.Aggressive, true, true)` when it suits, to give the memory back |
 | `WakeUp()` / `WakeUp(int maxThreadCount)` | Exit hibernation, re-index and resume |
 | `Dispose()` | Free all resources |
 
@@ -307,7 +308,7 @@ Result properties:
 - `Reranked` — whether the reranker ordered the list
 - `MatchReport` — with `Query.EnableMatchReport`: for each returned record how each query word was
   met (`Whole`, `Prefix`, `Suffix`, `Joined`, `RunTogether`, `OneEdit`, `TwoEdits`, `ThreeEdits`,
-  `Synonym`, `NotFound`) and in which field
+  `Synonym`, `NotFound`), in which field it counted, and in `Fields` every field that met it
 - `Reason` — set when the search was refused (a bad request, a disposed engine), null on a normal
   search including one that matched nothing
 - `DidTimeOut` — `true` when the search could not be **served**, rather than served and found nothing.
@@ -449,6 +450,11 @@ engine.InsertJsonRecord(jsonString, out string error);
 // Insert multiple
 engine.InsertJsonRecords(new[] { json1, json2 }, monitor: null, out error);
 engine.InsertJsonRecords(jsonStream, monitor, out error);
+
+// Keys are text: the key field's value ("42", "sku-17"). A result's ScoreEntry16.Key is it;
+// GetJsonDataOfKey, DeleteJsonRecord and UpdateField take it, or the long DocumentKey.
+string json = engine.GetJsonDataOfKey("sku-17");
+engine.DeleteJsonRecord("sku-17");
 
 // Update single (replaces entire document; must include the key field)
 engine.UpdateJsonRecord(jsonString, out error);
