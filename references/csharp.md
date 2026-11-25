@@ -287,7 +287,7 @@ if (result.Facets != null)
 ```
 
 Result properties:
-- `Records` — `ScoreEntry16[]` with `DocumentKey` (long) and `Score` (ushort, 0–65535), in rung order (exact before one edit before two), reranked inside each rung.
+- `Records` — `ScoreEntry16[]` with `DocumentKey` (long), `Score` (ushort, 0–65535) and, after 6.0.0-rc1, `Source` (`RecordSource`: `Counted`, `Fill`, `MostWords`, `Rest`), in rung order (exact before one edit before two), reranked inside each rung.
 - `Facets` — `Dictionary<string, KeyValuePair<string, int>[]>` (field → value/count pairs), counted
   over every record the search counted, not only those returned. A value is counted
   case-insensitively, as a value filter compares, and shown as first written, so a corpus that spells

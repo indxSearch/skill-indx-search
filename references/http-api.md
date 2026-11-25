@@ -396,7 +396,7 @@ Full (with defaults shown; send only what the search must decide, see below):
   "candidates": { "candidatesPerRow": 4, "maxCandidates": null, "minCandidates": 100, "noFallbackForNumbersFrom": 0, "indexTerms": "Both", "fallback": true, "rest": false,
                   "fillReach": 0, "fillWithMostWords": false },
   "ranking": { "rerank": true, "share": 0.2, "typingShift": 0.5, "longFieldFrom": 200, "longFieldWeightFloor": 0,
-               "wholeQueryFloor": true, "fieldWeights": null, "fieldBoosts": null,
+               "wholeQueryFloor": true, "heaviestFieldFirst": false, "fieldWeights": null, "fieldBoosts": null,
                "boosts": null, "buries": null },
   "enableFacets": false,
   "enableMatchReport": false,
@@ -515,8 +515,8 @@ apply from the next search, no reindex. A search's own values are refused in a `
 ```json
 {
   "records": [
-    { "key": "42", "documentKey": 42, "score": 52000 },
-    { "key": "17", "documentKey": 17, "score": 31000 }
+    { "key": "42", "documentKey": 42, "score": 52000, "source": "Counted" },
+    { "key": "17", "documentKey": 17, "score": 31000, "source": "Counted" }
   ],
   "facets": {
     "category": [
@@ -535,7 +535,7 @@ apply from the next search, no reindex. A search's own values are refused in a `
 }
 ```
 
-- `records` — `[{ documentKey, score }]`. Score is 0–65535 (ushort), in rung order (exact before one edit before two), reranked inside each rung.
+- `records` — `[{ documentKey, score, source }]`. `source` says why a record is there: `Counted` (one of `count`), `Fill`, `MostWords` or `Rest`; a filling record can stand above a counted one with `ranking.heaviestFieldFirst`, so do not take the first `count` for the counted ones (after 2.0.0-beta.6). Score is 0–65535 (ushort), in rung order (exact before one edit before two), reranked inside each rung.
 - `facets` — only populated when `enableFacets: true`; counted over every counted record, case folded.
 - `reason` — set when the engine **refused** the query instead of finding nothing: empty `text`
   without `enableFacets`, text over the 300-character limit, a dataset that is not ready. Records are
