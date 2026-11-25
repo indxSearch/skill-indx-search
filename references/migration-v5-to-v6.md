@@ -207,7 +207,7 @@ words and stays out of the word lookup, so it orders records but does not count 
 | the scoring mode chosen by differing `Field.BM25k1` | `ScoringSetup` in the configuration: `ScoringMode.BM25F` (the default, with `BM25FK1` 1.2) or `ScoringMode.BM25PerField`. In BM25F a field's `BM25k1` is ignored |
 | `TokenizerSetup.MaxSizeOfWordToken` 20 | 100, so long compounds are indexed as words |
 | `ConfigurationParameters`' `filterCacheSize` (entries, 200 000), `FilterCacheSize`, `DefaultFilterCacheSize` | `new SearchEngine(…, filterCacheMB: 256)`: a limit in megabytes, given with the engine. A configuration file that carries the old number still loads |
-| `Hibernate()` and `Unload()` ran `GC.Collect()` | they run none: the memory comes back when the runtime collects, or call `GC.Collect(2, GCCollectionMode.Aggressive, true, true)` yourself. The Indx server does it after a dataset is built or leaves memory |
+| `Hibernate()` and `Unload()` ran `GC.Collect()` | they run none: the memory comes back when the runtime collects, or call `GC.Collect(2, GCCollectionMode.Aggressive, true, true)` yourself (it stops the whole process while it runs). The Indx server does it after a dataset is built or leaves memory |
 
 ```csharp
 // Indx 5: fuzzy matching off for the whole engine

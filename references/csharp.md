@@ -76,7 +76,7 @@ Init(stream) → TrySetFieldConfiguration(...) → Load(stream) → Index() → 
 | Method | Description |
 |--------|-------------|
 | `new SearchEngine(license, filterCacheMB: 256)` | How many megabytes the filters kept between searches may take; the least recently used go past it, `0` keeps none. `Status.FilterCacheFilters`, `FilterCacheBytes`, `FilterCacheLimitBytes` say what they take |
-| `Hibernate(out string)` | Dispose indexed data to free memory. Searches will timeout. Filters remain usable. Runs no garbage collection: call `GC.Collect(2, GCCollectionMode.Aggressive, true, true)` when it suits, to give the memory back |
+| `Hibernate(out string)` | Dispose indexed data to free memory. Searches will timeout. Filters remain usable. Runs no garbage collection: call `GC.Collect(2, GCCollectionMode.Aggressive, true, true)` when it suits, to give the memory back. It stops every thread of the process while it runs, which on a large heap can be over a second: not while searches are served |
 | `WakeUp()` / `WakeUp(int maxThreadCount)` | Exit hibernation, re-index and resume |
 | `Dispose()` | Free all resources |
 
