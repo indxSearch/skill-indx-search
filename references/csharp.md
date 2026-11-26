@@ -603,4 +603,4 @@ if (result.Facets != null && result.Facets.TryGetValue("price", out var histogra
 - **Extended license (free)**: Unlimited — register at [indx.co](https://indx.co)
 - **Company license (paid)**: Unlimited + SLA and support
 
-Pass the license path to the `SearchEngine` constructor, or place the `.license` file in the working directory.
+Pass the license path to the `SearchEngine` constructor: the library reads it from that path only and does not look for one elsewhere. A relative path is resolved against the working directory, so pass a full one (`Path.Combine(AppContext.BaseDirectory, "indx-developer.license")`, the file copied to the output). Without a valid license the engine loads the first 100,000 documents and leaves the rest out: check `engine.Status.LicenseInfo.ValidLicense`, `DocumentLimit` and `DocumentLimitExceeded`.
