@@ -2,7 +2,9 @@
 
 For non-.NET tech stacks, deploy the Indx server and interact via REST. For setup, deployment, and configuration see [cloudapi-setup.md](cloudapi-setup.md).
 
-**OpenAPI spec**: `https://localhost:5001/swagger/v1/swagger.json`
+This page is for the Indx server **2.0 beta 4 and later** (IndxSearchLib 6.0 inside). A server on beta 3 or earlier speaks the v5 shape (`coverageDepth`, `truncationIndex`, enums as numbers): see [migration-v5-to-v6.md](migration-v5-to-v6.md).
+
+**OpenAPI spec**: `https://localhost:5001/swagger/v2.0-beta/swagger.json`
 
 ## Authentication
 
@@ -10,11 +12,11 @@ All endpoints require a **Bearer token** — an API key from the console (Accoun
 
 | Level | Can call | Use it for |
 |---|---|---|
-| **Search only** | `search`, `search/vector`, `search/hybrid`, `documents/lookup`, `filters/value`, `filters/range`, `filters/combine`, `filters/not`, `boosts/from-filter`, `fields/facetable`, `fields/filterable`, `fields/sortable`, `fields/searchable`, `GET fields/configuration`, `status`, and `PUT` on an existing dataset | Websites and apps — the key is visible in the browser, and this is all it can do |
-| **Read only** | Every read: adds `export`, `fields/configuration`, `synonyms`, `boosts`, counts, dataset lists | Exports, reporting, agents, back-ups — keep it on a server |
+| **Search only** | `search`, `search/vector`, `search/hybrid`, `documents/lookup`, `filters/value`, `filters/range`, `filters/in`, `filters/position`, `filters/expression`, `filters/combine`, `filters/not`, `boosts/from-filter`, `buries/from-filter`, `fields/facetable`, `fields/filterable`, `fields/sortable`, `GET fields/configuration`, `GET query-parameters`, `status`, a record's `public` cold storage, and `PUT` on an existing dataset | Websites and apps — the key is visible in the browser, and this is all it can do |
+| **Read only** | Every read: adds `export`, `fields/configuration`, `fields/profiles`, `synonyms`, `boosts`, `buries`, counts, dataset lists, and `public` and `answer` cold storage | Exports, reporting, agents, back-ups — keep it on a server |
 | **Full access** | Everything your team role allows, including loading, changing and deleting data | Your own servers and pipelines |
 
-A key never exceeds its owner's role in the team: a Viewer can create Search and Read keys, not Full ones. Keys cannot be changed after they are created — create a new one and revoke the old. A key outside its limits gets the same answer as a missing team or dataset (`404 teamNotFound` / `datasetNotFound`); a call above its level gets `403 insufficientKeyScope`. Keys created before access levels existed are unscoped and reach every team you belong to — replace them.
+A key never exceeds its owner's role in the team: a Viewer can create Search and Read keys, not Full ones. A Read key created with **Also reads private cold storage** reads `private` cold storage too (a support chatbot's backend); only an Editor or Admin can create one. Keys cannot be changed after they are created — create a new one and revoke the old. A key outside its limits gets the same answer as a missing team or dataset (`404 teamNotFound` / `datasetNotFound`); a call above its level gets `403 insufficientKeyScope`. Keys created before access levels existed are unscoped and reach every team you belong to — replace them.
 
 **Personal keys and team keys.** A personal key (Account → API keys) acts as its owner and never exceeds their team role; it stops working if they leave the team. A team key (Manage team → API keys, created by a team Admin) belongs to the team: its rights are its access level alone (Full access writes as an Editor; deleting datasets and managing the team give `403 insufficientRole`), it keeps working when its creator leaves, and every Admin of the team can see and revoke it. **For anything deployed (a production site, a shared server, CI), recommend a team key.** Personal keys suit a developer's own scripts and AI agents.
 
@@ -59,15 +61,15 @@ Every error is an [RFC 9457 ProblemDetails](https://www.rfc-editor.org/rfc/rfc94
 | Status | `code` | Meaning | What to do |
 |--------|--------|---------|------------|
 | `400` | `invalidArgument` | Missing/invalid body or argument | Fix the request; don't retry as-is |
-| `400` | `invalidDatasetName` | The dataset name itself is not allowed | Use letters/digits (no path characters) |
+| `400` | `invalidDatasetName` | The dataset name itself is not allowed | Keep names to letters, digits, `.`, `-` and `_` (`shop.example.com` is fine); no `/` or other path characters |
 | `400` | `loadFailed` | The JSON payload could not be loaded/analyzed (parse error, key-field violation) | Fix the data; the dataset's previous documents are untouched on `replace` |
 | `400` | `operationFailed` | A server-side step failed cleanly (index build, shadow build, wake-up) | Read `detail`; retrying may work after fixing the cause |
 | `400` | `unknownFilter` | A referenced filter `hashString` could not be resolved | Re-create the filter and retry with the new token — never retry without the filter |
+| `400` | `invalidFilterExpression` | A filter expression makes no filter | Read `errors` (`kind`, `message`, `start`, `length`, `suggestion`) and fix the expression — never retry without it |
 
-A `hashString` is **opaque**: obtain it from `filters/value|range|combine|not`, pass it back, and do
-not parse or construct it. It is durable — it survives cache eviction and a restart — so it can
-be held for the life of a dataset's field configuration. There is no NOT endpoint; exclude a
-value by filtering on the complementary values instead.
+A `hashString` is **opaque**: obtain it from `filters/value|range|in|position|expression|combine|not`,
+pass it back, and do not parse or construct it. It is durable — it survives cache eviction and a
+restart — so it can be held for the life of a dataset's field configuration.
 | `401` | — | Missing/expired/invalid token (body-less) | Refresh the bearer token |
 | `401` | `invalidCredentials` / `userNotFound` | Login failed | Fix the credentials |
 | `403` | `insufficientRole` | You are a member, but your team role is too low | Get a higher role (Editor/Admin) |
@@ -77,7 +79,7 @@ value by filtering on the complementary values instead.
 | `404` | `documentNotFound` | The addressed document key(s) don't exist | Fix the keys; batch deletes name every missing key and apply nothing |
 | `404` | `statisticsDisabled` | Statistics are switched off on this instance | Don't retry; the events/statistics routes are unavailable by operator choice |
 | `409` | `invalidState` | **Wrong lifecycle state** — the dataset can't serve this operation right now | See below |
-| `409` | `shadowBusy` | A background rebuild (replace / re-index / field-config) is already running | Retry after it completes |
+| `409` | `shadowBusy` | A background rebuild (replace / re-index / field-config) is running; every change to the dataset waits for it, a single document included | Retry after it completes |
 | `429` | `rateLimited` | Too many attempts from this address on an anonymous auth endpoint; this API key exceeded its requests-per-second budget (where the operator enabled it); or too many calls from this address carried no bearer token that validates (missing, expired or invalid) | Wait `Retry-After` seconds (also `retryAfterSeconds` in the body); do not retry sooner. For the per-key limit, spread calls out or batch them (`documents` endpoints take arrays). For the tokenless limit, authenticate — every one of those calls was going to 401 |
 | `500` | `internalError` | Unexpected server error; `traceId` included | Report the `traceId` |
 
@@ -107,6 +109,7 @@ A `409 invalidState` is returned when an operation is valid but the dataset's `s
 | GET | `/api/teams/{teamName}/datasets` | List datasets owned by one team → `string[]` |
 | PUT | `/api/teams/{teamName}/datasets/{dataSetName}` | Create or open a dataset — `201` created, `200` already existed |
 | GET | `status` | Get dataset status → `CloudSystemStatus` |
+| PUT | `filter-cache?megabytes=` | How many megabytes the dataset's kept filters may take, 0 to 65536 (default 256, or `?filterCacheMB=` on create). A loaded dataset is rebuilt with it → `202`, poll `status` until `shadowBuildInProgress` is `false`; one not loaded takes it on its next load → `204` |
 | GET | `documents/count` | Get document count → `{"count": n}` |
 | DELETE | `/api/teams/{teamName}/datasets/{dataSetName}` | Delete dataset permanently (team Admin) → `204` |
 
@@ -172,13 +175,17 @@ Roles are written by one endpoint; the role lists are read-only.
 | PUT | `fields/configuration` | `FieldProxy[]` | Set field roles, weights and BM25 parameters; only the properties sent are changed → `204` applied, or `202` + status when a rebuild was started |
 | GET | `fields/configuration` | — | Get current field configuration → `FieldProxy[]` |
 | GET | `fields` | — | List all discovered field names → `string[]` |
-| GET | `fields/searchable` / `fields/filterable` / `fields/facetable` / `fields/sortable` / `fields/word-indexing` / `fields/embeddable` | — | List field names by role → `string[]` |
+| GET | `fields/filterable` / `fields/facetable` / `fields/sortable` / `fields/embeddable` | — | List field names by role → `string[]`. Which fields are searched, and how, is in `fields/configuration` (`wordMatching`, `patternMatching`) |
+| GET | `fields/profiles` | — | The dataset's field profiles: the five built-ins (title, name, category, code, text) and its own, each a searched field's `tolerance`, `rerankWeight`, pattern setup and `textRules` under one name, with the fields that have it |
+| PUT | `fields/profiles` | profiles | Change or add profiles; their values are written onto the fields that have them, as `PUT fields/configuration` would → `204` or `202` |
 
-`PUT fields/configuration` checks the whole request first; a refused one is `400` and changes nothing. Before the dataset is indexed it always answers `204`. On a `Ready` dataset a change that needs the index rebuilt answers `202`: the rebuild runs in the background on a shadow engine and the old configuration serves until the swap. Poll `GET status` until `shadowBuildInProgress` is `false`, then check `shadowBuildError` (`null` = the new configuration is in use). During a rebuild another configuration change, `POST index` or a bulk document change gets `409 shadowBusy`.
+`PUT fields/configuration` checks the whole request first; a refused one is `400` and changes nothing. Before the dataset is indexed it always answers `204`. On a `Ready` dataset a change that needs the index rebuilt answers `202`: the rebuild runs in the background on a shadow engine and the old configuration serves until the swap. Poll `GET status` until `shadowBuildInProgress` is `false`, then check `shadowBuildError` (`null` = the new configuration is in use). During a rebuild every change to the dataset gets `409 shadowBusy`: another configuration change, `POST index`, a bulk document change, one document (`POST`/`PUT`/`PATCH`/`DELETE documents/{key}`) and `PUT synonyms`. The rebuild works on a clone and swaps it in, so a change applied to the live engine meanwhile would be lost at the swap; retry when `shadowBuildInProgress` is `false`.
 
 A vector field (`embeddable: true`) must be an array of numbers and can have no other role.
 
-The individual role setters (`PUT fields/searchable` / `fields/filterable` / `fields/facetable` / `fields/sortable` / `fields/word-indexing` / `fields/embeddable`) were removed in October 2026 and answer `405` — use `PUT fields/configuration`.
+**A dataset analyzed fresh searches nothing until a field has `wordMatching` or `patternMatching`.** Which way a searched field is matched is an index rebuild; whether a field is searched at all is a reload, which `PUT fields/configuration` does on a shadow engine.
+
+The individual role setters (`PUT fields/searchable` / `fields/filterable` / `fields/facetable` / `fields/sortable` / `fields/word-indexing` / `fields/embeddable`) were removed in October 2026 and answer `405`, and `GET fields/searchable` and `GET fields/word-indexing` are gone since 2.0 beta 4: use `fields/configuration`.
 
 ### Indexing and Search
 
@@ -186,9 +193,12 @@ The individual role setters (`PUT fields/searchable` / `fields/filterable` / `fi
 |--------|-----------|------|-------------|
 | POST | `index` | — | Start indexing → `202 Accepted` at once with the status body; the build runs in the background. First build: poll `GET status` until Ready. On a Ready dataset it is a rebuild on a shadow engine: poll until `shadowBuildInProgress` is `false`, then check `shadowBuildError` |
 | POST | `search` | `QueryProxy` | Full-text search → `Result` |
+| POST | `search/multi` | `QueryProxy[]` | Up to 20 searches in one call, answered in the order sent; each answer carries its `queryId`, a failed one is `{ status, error }` in its place. What an InstantSearch page asks at once: its list and each ticked OR facet's counts without that facet's own filter. Each search may carry `count`, `source`, `session` in its body, over the query string's, so only the visitor's search is counted |
+| POST | `facets/{field}/search` | `{ text?, rows?, search?, values? }` | A facetable field's values matching `text` with Indx's matching (typos, word starts, any word of the value), the most records first: a long facet's own search field ("Search actors…"). → `{ values: [{ value, count }], fallback, exhaustive: true }`; with `search` the counts are of its records (its own `facetSelections` left out) and values it holds none of are dropped; or send `values` (the page's own facet values for the search, up to 3,000) to match among them only and keep the page's counts. `rows` 1 to 100 (10). Not counted in the statistics. Maps to InstantSearch's `searchForFacetValues` (no `highlighted` marks yet) |
+| POST | `search/groups` | `{ …search, groups: [{ name, filter?, rows, countFilter?, candidates?, ranking?, match?, primary? }] }` | One text answered in named sections, each ranked within its own filter (ANDed with the search's), with its own rows and count: books, authors and events of a search box in one call. → `{ groups: { name: result }, queryId }`; one search in the statistics, the `primary` section's (else the first). `countFilter` counts by another filter than the section lists by; then `count` is `countFilter`'s, a real count even when `isFallback` (which describes the list) is set |
 | POST | `search/vector` | `VectorQueryProxy` | Embedding nearest-neighbour search → `EmbeddingResultEntry[]` |
 | POST | `search/hybrid` | `HybridQueryProxy` | Blended text + vector search → `EmbeddingResultEntry[]` |
-| POST | `documents/lookup` | `long[]` (document keys) | Retrieve full JSON records → `string[]` |
+| POST | `documents/lookup` | array of keys, each a text or a number | Retrieve full JSON records → `string[]`; `?start=&length=` for a part. A search with `includeDocuments: true` returns them itself |
 
 Search responses carry an **`Indx-Query-Id`** header (CORS-exposed): an opaque id minted per
 search when statistics are enabled. Hold it briefly on the client and echo it in the
@@ -213,15 +223,53 @@ Insert, update, and delete without rebuilding the index. The dataset stays ready
 | POST | `documents/delete-by-filter` | `FilterProxy` | Delete all documents matching a filter → `204` |
 | POST | `documents/update-by-filter` | `FilterFieldUpdateProxy` | Batch update a field on all matching documents → `200` (`{"count": n}` — documents updated) |
 
+### Cold Storage
+
+Text kept beside a record and never searched, nor held in memory: a book's table of contents, a
+review, an article, stock notes. Read when needed, by an agent, a page or a backend; a read may be
+slower than a search. It survives `load` and `replace`, so text from another system than the
+records is loaded by a sync of its own. An item belongs to one record, by key, with a `name`
+(`toc`) and optional `?language=`; at most 50 per record and 256 000 characters each;
+`contentType` `text/plain`, `text/markdown` or `application/json`; a one-line `description` for
+agents. Something that belongs to many records is a record of its own (an author's biography on
+the author's record).
+
+| Method | Operation | Body | Description |
+|--------|-----------|------|-------------|
+| PUT | `documents/{documentKey}/cold/{name}` | `{ content, contentType?, description?, visibility?, sourceRef?, sourceUpdatedUtc? }` | Create or replace one item, whole → `201` / `200`, version as `ETag`. `If-Match` refuses a write against a changed item; an older `sourceUpdatedUtc` than stored is refused (`409 coldConflict`) |
+| GET | `documents/{documentKey}/cold/{name}` | — | One item with its content |
+| GET | `documents/{documentKey}/cold` | — | The record's items, without content |
+| DELETE | `documents/{documentKey}/cold/{name}` | — | Delete one item → `204` |
+| PUT | `cold` | items, each with `name` and the record as `recordKey` (its Indx key) or `id` (the sender's own id: what the dataset's webhook sends, often Sanity's `_id`, or the key as text) | A sync's batch; `?prune=true` also deletes what the same key wrote before and did not send now, nobody else's. An `id` no record has refuses that item with why; each outcome carries its `id` |
+
+`visibility`: `public` (a page may show it), `answer` (Search or ask's answer may use it, a browser
+never), `private` (the default: customer data). Who reads what:
+
+| Caller | Reads |
+|---|---|
+| Search key over HTTP | `public` |
+| Search key over MCP | nothing |
+| Search or ask's answer | `public`, `answer` |
+| Read key; a Viewer | `public`, `answer` |
+| Read key with the private flag; Full key; Editor or Admin | every item |
+
+Writing takes a Full key or an Editor. Items a caller may not read are left out of every listing,
+uncounted, and asking for one by name answers `404 coldNotFound`, as for one that does not exist.
+
 ### Filters and Boosts
 
 | Method | Operation | Body | Description |
 |--------|-----------|------|-------------|
 | POST | `filters/value` | `ValueFilterProxy` | Create equality filter on a **non-numeric** field → `FilterProxy`. On a numeric field: `400` naming `filters/range` instead |
 | POST | `filters/range` | `RangeFilterProxy` | Create range filter on a **numeric** field → `FilterProxy`. Equal limits = exact match. On a text field: `400` (a number stored as a JSON string is text) |
-| POST | `filters/combine` | `CombinedFilterProxy` | Combine with AND/OR → `FilterProxy` |
+| POST | `filters/in` | `InFilterProxy` | One of a set of values (`{fieldName, values, isCaseSensitive}`) → `FilterProxy` |
+| POST | `filters/position` | `PositionFilterProxy` | Within `withinMeter` of `{latitude, longitude}` → `FilterProxy` |
+| POST | `filters/expression` | `FilterExpressionProxy` | `{expression, parameters?}` → `{hashString, canonical}`; errors → `400 invalidFilterExpression` |
+| POST | `filters/combine` | `CombinedFilterProxy` | Combine a list with AND/OR (`{filters: [...], useAndOperation}`) → `FilterProxy` |
 | POST | `filters/not` | `FilterProxy` | Negate: every document the filter does not match → `FilterProxy` |
-| POST | `boosts/from-filter` | `BoostProxy` | Create boost rule → `BoostProxy` |
+| POST | `boosts/from-filter` | `BoostProxy` | A boost for one search's `ranking.boosts` → `BoostProxy` |
+| POST | `buries/from-filter` | `BuryProxy` | A bury for one search's `ranking.buries`: the filter's documents scored lower → `BuryProxy` |
+| GET / PUT / DELETE | `boosts`, `buries` | rule list | The dataset's saved boost and bury rules, applied to every search |
 | POST | `filters/load` | — | Pre-load all registered filters into memory → `204` |
 | GET | `filters/count` | — | Count cached filters → `{"count": n}` |
 | POST | `filters/delete` | `FilterProxy` | Release one cached filter → `204` (POST, not DELETE, because the filter key travels in the body) |
@@ -234,19 +282,19 @@ Insert, update, and delete without rebuilding the index. The dataset stays ready
 | GET | `synonyms` | — | The dataset's synonym list → `200` (a literal `null` when it has none) |
 | PUT | `synonyms` | `SynonymList` or `null` | Replace the list; `null` removes it; editor role → `204` |
 
-Synonyms expand queries at search time (matching an entry appends its terms to the query text before scoring), so a `PUT` applies on the very next search — no re-indexing, no state change. Body shape:
+Synonyms work at search time, so a `PUT` applies on the very next search: no re-indexing, no state change. A query word (or run of words) that matches an entry is held through the words as typed **or** any of the entry's terms, so a synonym widens the counted set, and a record holding a word only through a synonym ranks below those holding the typed word (`toleranceCounts.throughSynonym`). Body shape:
 
 ```json
 {
   "name": "medical-terms",
   "entries": [
-    { "direction": 0, "terms": ["legemiddel", "medisin"] },
-    { "direction": 1, "source": "hms", "terms": ["helse, miljø og sikkerhet"] }
+    { "direction": "Multidirectional", "terms": ["legemiddel", "medisin"] },
+    { "direction": "OneWay", "source": "hms", "terms": ["helse, miljø og sikkerhet"] }
   ]
 }
 ```
 
-`direction`: `0` = Multidirectional (all terms equivalent — any of them triggers the group), `1` = OneWay (only `source` expands, into `terms` — for acronyms). Multi-word terms match as whole phrases. Note that expansion lengthens the query text, which lowers Coverage scores proportionally.
+`direction`, by name (`0`/`1` still accepted): `Multidirectional` (all terms equivalent — any of them triggers the group), `OneWay` (only `source` expands, into `terms` — for acronyms). Multi-word terms match as whole phrases. Do not add typos, spelling variants or translations: the matcher finds misspellings itself.
 
 ### Statistics and Events
 
@@ -259,21 +307,21 @@ request**: only the search the visitor settled on is then counted, not each keys
 search re-sent within 30 s (facets after a debounce, a new sort, load more) counts once; keep the
 `Indx-Query-Id` of the latest response for the click. A request for zero records is not counted. **Send `?locale=<BCP 47 tag>`**, the language the page is in (`nb-NO`, `en-GB`), and Statistics
 counts the languages visitors search in; without it the browser's `Accept-Language` is read.
-**Name the surface with `?source=<name>`** when a dataset has several (a header search box, a product finder, an app): it is stored with the search and counted as usual. **A search that is not a visitor's** (an agent checking what a query returns, a monitor, a test) **sends `?count=false`**, usually with its own `?source=`: it is stored but left out of every statistic, like the console's preview, so whoever reads the numbers does not read their own searches back. A select or convert on such a search is not counted either; an event can also say `"count": false` itself. Event posts answer
+**A value ticked from a facet's own search** (`facets/{field}/search`) is sent with the search the tick makes, `?pickField=&pickValue=&pickText=` and `?pickFallback=true` when it came from the closest matches: the console's Journeys show it as a step of the visit (only searches with a `session` are in Journeys; intrface's `ValueFilterPanel` sends it by itself). **Name the surface with `?source=<name>`** when a dataset has several (a header search box, a product finder, an app): it is stored with the search and counted as usual. **A search that is not a visitor's** (an agent checking what a query returns, a monitor, a test) **sends `?count=false`**, usually with its own `?source=`: it is stored but left out of every statistic, like the console's preview, so whoever reads the numbers does not read their own searches back. A select or convert on such a search is not counted either; an event can also say `"count": false` itself. Event posts answer
 `202 Accepted` (queued, batch-written); an unknown or expired `queryId` is still accepted and
 counts on the document — it just finds no search to join. All statistics routes answer
 `404 statisticsDisabled` when the operator switched the feature off.
 
 | Method | Operation | Body / Query | Description |
 |--------|-----------|--------------|-------------|
-| POST | `events/select` | `{queryId?, documentKey, position, subject?, count?}` | The user chose a result; `position` is 1-based in the list. Search key suffices → `202` |
-| POST | `events/convert` | `{queryId?, documentKey, type, subject?, count?}` | Something valuable happened — `type` is your own name for it (`"order"`, `"addToCart"`). Counted per document, the signal for personalised boosting; `value`/`currency`/`quantity` are accepted but not reported. `queryId` optional: an order may come long after the search. Search key → `202` |
-| GET | `statistics/overview` | `?days=30` | The window's totals with the rates computed server-side: `uncoveredRate` (searches coverage confirmed nothing for: typos too large for an exact match), `uncoveredChosen` (of those, the ones a result was chosen from anyway: fuzzy finds), `clickThroughRate` (searches with ≥1 select over ALL searches), `averageClickPosition` — `null` when the denominator is zero, never 0%. `zeroHitRate` stays for compatibility. Read key |
+| POST | `events/select` | `{queryId?, key, position, subject?, count?}` (`key` the result's `key`; `documentKey`, the number, still read) | The user chose a result; `position` is 1-based in the list. Search key suffices → `202` |
+| POST | `events/convert` | `{queryId?, key, type, subject?, count?}` | Something valuable happened — `type` is your own name for it (`"order"`, `"addToCart"`). Counted per document, the signal for personalised boosting; `value`/`currency`/`quantity` are accepted but not reported. `queryId` optional: an order may come long after the search. Search key → `202` |
+| GET | `statistics/overview` | `?days=30` | The window's totals with the rates computed server-side: `uncoveredRate` (searches that counted nothing: no record held every word within the tolerance, so the fallback was shown), `uncoveredChosen` (of those, the ones a result was chosen from anyway), `clickThroughRate` (searches with ≥1 select over ALL searches), `averageClickPosition` — `null` when the denominator is zero, never 0%. `zeroHitRate` stays for compatibility. Read key |
 | GET | `statistics/timeseries` | `?days=30` | One row per day in the dataset's time zone (`date` as `yyyy-MM-dd`), zero rows included so charts have no holes. Read key |
 | GET | `statistics/filters` | `?days&limit` | Browsing: uses and zero-hit count per filter value (`field`, `value`; a range has an empty `value`), with or without text. Read key |
 | GET | `statistics/changes` | `?days=30` | What the dataset's owners changed, beside the numbers: `changes` (`at`, `kind`: synonyms, boostRules, fields, reindex, replace, documents, hibernate, wake, rename, delete; `summary` of counts and field names, never content or who) and `documents` (inserted/updated/deleted per day). A single request changing ≥1 000 documents (or a tenth of the dataset) and every by-filter operation is a `documents` change of its own. Read key |
 | GET / PUT | `statistics/settings` | `{recordFilters, labelField, timeZone}` | Whether each search's filter is stored (Browsing). On by default; switch off on datasets of people, where a filter value can be a name. Off stops the recording; values already recorded stay until they age out or the statistics are erased. PUT needs a Full key and team admin |
-| GET | `statistics/queries` | `?days&limit&uncoveredOnly&order` | Top queries with searches, selects, clicked-search count and position sum. `uncoveredOnly=true` lists the misspelled searches (coverage confirmed nothing) with `uncoveredChosen` (a result chosen anyway: fuzzy search found it) and `mostChosenDocument` (the result chosen most). `order`: `searches` (default), `lowestClickThrough` (searched often, chosen from rarely: missing what people want, or ranking it too low), `highestClickThrough`, `chosenAnyway` (with `uncoveredOnly`); the two click-through orders leave out queries searched fewer than five times. Read key |
+| GET | `statistics/queries` | `?days&limit&uncoveredOnly&order` | Top queries with searches, selects, clicked-search count and position sum. `uncoveredOnly=true` lists the searches that counted nothing, with `uncoveredChosen` (a result chosen anyway from the fallback) and `mostChosenDocument` (the result chosen most). `order`: `searches` (default), `lowestClickThrough` (searched often, chosen from rarely: missing what people want, or ranking it too low), `highestClickThrough`, `chosenAnyway` (with `uncoveredOnly`); the two click-through orders leave out queries searched fewer than five times. Read key |
 | GET | `statistics/queries/documents` | `?text&days&limit` | For one query (`text`, lowercased like the query list): every document chosen from its results with `selects`, `positionSum` and the `converts` from the same searches, most chosen first. Tells whether a rarely chosen query found the thing itself or a substitute. From the raw rows, so up to 90 days back. `text` missing → `400`. Read key |
 | GET | `statistics/documents` | `?days&limit` | Top documents: selects and conversions, with a `label` (see below). Read key |
 | GET | `statistics/sources` | `?days=30` | The surfaces searched from in the window, most searched first: `source` and `searches` (counted as the overview counts them; a surface with only browsing is listed with `0`); searches sent without `?source=` are the row with `source: null`. Read key |
@@ -283,11 +331,11 @@ counts on the document — it just finds no search to join. All statistics route
 
 **Checking that clicks join their search:** the event posts answer `202` before anything is written and accept an unknown `queryId`, so they cannot say whether a click joined. Read it back instead, a few seconds later: after a counted search and a click carrying its `Indx-Query-Id`, `GET statistics/queries/documents?days=1&text=<query>` lists the clicked document. A click that did not join counts on the document only (`statistics/documents`), not on the query. A `count=false` search and its clicks are left out of the reads, so check with a counted one.
 
-**Labels:** `documents`, `queries/documents` and `subjects/{subject}` carry a `label` per document, and the misspelled-query list a `mostChosenLabel`: the value of the first searchable field (usually the title), or of `labelField` set with `PUT statistics/settings` (`{"labelField": "author.name"}`; `""` resets; an unknown field is `400`; a PUT leaves out what it does not send). `null` while the dataset sleeps: a statistics read never wakes it.
+**Labels:** `documents`, `queries/documents` and `subjects/{subject}` carry a `label` per document, and the misspelled-query list a `mostChosenLabel`: the value of the first searched field (usually the title), or of `labelField` set with `PUT statistics/settings` (`{"labelField": "author.name"}`; `""` resets; an unknown field is `400`; a PUT leaves out what it does not send). `null` while the dataset sleeps: a statistics read never wakes it.
 
 **Days and time zones:** a day runs midnight to midnight in the dataset's `timeZone` (an IANA name such as `Europe/Oslo`, set with `PUT statistics/settings`; UTC unless set, or the operator's `Statistics:TimeZone`). Every read and the `from`/`to` of a delete count in it. Changing it counts the kept 90 days again; older days keep their old cut. Unknown name → `400`.
 
-**A server-rendered page needs a session too:** make an id per page view and carry it through paging, sorting and facet clicks, or each of those counts as another search. The server never merges searches without a session. **A strict search (`includePatternMatches: false`) and its fuzzy retry, sent with the same session, are one search**: the retry is kept, and a click on it is a fuzzy find. Without a session they are two, one of them a zero-hit search.
+**A server-rendered page needs a session too:** make an id per page view and carry it through paging, sorting and facet clicks, or each of those counts as another search. The server never merges searches without a session. **A strict search (`candidates.fallback: false`) and its broader retry, sent with the same session, are one search**: the retry is kept, and a click on it is a fuzzy find. Without a session they are two, one of them a zero-hit search.
 
 **One surface:** `overview`, `timeseries`, `queries`, `queries/documents`, `documents` and `filters` take `?source=` and then count only the searches sent with it. A select or conversion counts for the surface of the search its `queryId` names; one without a `queryId` is in the totals only. An unknown source gives zeros, not the totals. Read from the raw rows, so up to 90 days back by default. The console's Statistics tab has a surface selector for the same split.
 
@@ -314,8 +362,9 @@ dataset *name*, matching how document keys are yours. Deleting the dataset does 
 
 ```json
 [
-  { "fieldName": "title",       "searchable": true,  "weight": 2.0 },
-  { "fieldName": "description", "searchable": true,  "weight": 1.0 },
+  { "fieldName": "title",       "wordMatching": true, "patternMatching": true, "weight": 2.0 },
+  { "fieldName": "description", "wordMatching": true, "patternMatching": true },
+  { "fieldName": "sku",         "wordMatching": true, "tolerance": "Exact" },
   { "fieldName": "category",    "filterable": true,  "facetable": true },
   { "fieldName": "price",       "filterable": true,  "sortable": true },
   { "fieldName": "rating",      "sortable": true }
@@ -323,7 +372,9 @@ dataset *name*, matching how document keys are yours. Deleting the dataset does 
 ```
 
 All fields are optional (null = unchanged). Available properties:
-`fieldName`, `fieldType`, `isArray`, `searchable`, `filterable`, `facetable`, `sortable`, `wordIndexing`, `embeddable`, `weight` (float), `bM25b` (float, 0–1), `bM25k1` (float, 1–2), `preloadFilters`, `highResolution` (also index/query N-grams with delimiters removed, so a run-together or split query matches across them).
+`fieldName`, `fieldType`, `isArray`, `optional`, `sampleValue`, `wordMatching` (matched by whole words, within the field's `tolerance`; counts), `patternMatching` (matched inside words; with `indexSizes`, `numberOfStartCharacters`, `numberOfStopCharacters`, default `[3]`, 2, 0), `filterable`, `facetable`, `sortable`, `embeddable`, `weight` (float, default 1.0), `bM25b` (float, 0–1), `bM25k1` (float; refused on a BM25F dataset, which every server dataset is), `tolerance` (`Exact`, `OneEdit` default, `TwoEdits`, `ThreeEdits`), `rerankWeight` (0 leaves the field out of the reranker and the word lookup), `typingPrefixFrom`, `caseSensitive`.
+
+**Never send `searchable`.** It is read as `wordMatching` alone, so the field loses pattern matching; send both roles to search a field as v5 did. `wordIndexing` and `highResolution` bind to nothing.
 
 `fieldType` and `isArray` are read-only — the server fills them in on `GET fields/configuration` and ignores them on `PUT fields/configuration`.
 
@@ -334,93 +385,138 @@ Minimal:
 { "text": "search terms", "maxNumberOfRecordsToReturn": 30 }
 ```
 
-Full (with defaults shown; `coverageDepth` and `coverageSetup` are best left out, see below):
+Full (with defaults shown; send only what the search must decide, see below):
 ```json
 {
   "text": "search terms",
   "maxNumberOfRecordsToReturn": 30,
-  "enableCoverage": true,
-  "coverageDepth": null,
+  "mode": "EditDistance",
+  "match": { "tolerance": "TwoEdits", "rungs": "Fewest", "oneEditFrom": 3, "twoEditsFrom": 6, "threeEditsFrom": 9,
+             "cursorAt": null, "typingPrefixFrom": 2, "typingPrefixOneEditFrom": 6, "joinedWords": true },
+  "candidates": { "candidatesPerRow": 4, "maxCandidates": null, "minCandidates": 100, "noFallbackForNumbersFrom": 0, "indexTerms": "Both", "fallback": true, "rest": false,
+                  "fillReach": 0, "fillWithMostWords": false },
+  "ranking": { "rerank": true, "share": 0.2, "typingShift": 0.5, "longFieldFrom": 200, "longFieldWeightFloor": 0,
+               "wholeQueryFloor": true, "heaviestFieldFirst": false, "fieldWeights": null, "fieldBoosts": null,
+               "boosts": null, "buries": null },
   "enableFacets": false,
-  "enableBoost": false,
-  "removeDuplicates": true,
+  "enableMatchReport": false,
+  "measureFit": false,
+  "collapseBy": null,
+  "facetSelections": null,
+  "facetRanges": null,
+  "counts": null,
   "sortBy": null,
   "sortAscending": false,
   "timeOutLimitMilliseconds": 1000,
   "filter": null,
-  "boosts": null,
-  "coverageSetup": null,
-  "fieldBoosts": {}
+  "filterExpression": null,
+  "filterParameters": null
 }
 ```
 
-- `coverageDepth` (default **500**) — how many pattern-match candidates coverage confirms. Hits past
-  the depth are never evaluated, so a broad query reports a total landing exactly on the depth: **a
-  count equal to `coverageDepth` is the cap, not the data.** Raise it to the document count on small
-  and mid-sized datasets (cost is linear in depth), and use one depth for the list and its facet counts.
+Any part may be left out or `null`: its defaults apply. Enums are written **by name**, in requests
+and responses alike (a number in a request is still accepted): `mode` `EditDistance` (default),
+`Bm25f`, with `ranking.rerank` (default `true`) whether the reranker orders the records in either;
+`match.tolerance` `Exact`, `OneEdit`, `TwoEdits` (default, capped by each field's own `tolerance`),
+`ThreeEdits`; `match.rungs` `Fewest`, `All`; `candidates.indexTerms` `Both`, `Words`, `Patterns`.
+The v5 members (`enableCoverage`, `coverageDepth`, `coverageSetup`, `enableBoost`, top-level
+`fieldBoosts` and `boosts`) are ignored if sent: a v5 client gets answers but loses those settings.
+
+- `filterExpression` — e.g. `"brand IN [\"nike\", \"puma\"] AND (price < 500 OR NOT category = \"outlet\")"`:
+  `= != < <= > >=`, `IN [..]`, `BETWEEN a AND b`, `within(field, lat, lon, meters)`, `AND OR NOT`
+  and parentheses, text in double quotes with JSON's escapes (a JSON-serialized string drops in as it is), `true` / `false`
+  bare for a boolean field (`isMainProduct = true`), `MATCHCASE` for case. `!=` and `NOT` also match the records where
+  the field is empty or missing (`NOT format IN ["pocket"]` keeps the records with no format). ANDed with `filter`;
+  `filterParameters` gives the token for each `$name` placeholder. Also on `search/vector` and
+  `search/hybrid`. Errors → `400 invalidFilterExpression`.
+
+- `candidates` — every record holding the query's words on the first rung with hits (exactly, else
+  one edit, else two) is counted, `toleranceCounts` in the result, never capped. The best of them up
+  to the bound are ranked: the rows times `candidatesPerRow` (4), at least `minCandidates` (100) and at most 5 000, or `maxCandidates` outright;
+  `count` above `ranked` says the bound was reached. `fallback: false` returns an empty list when nothing is
+  counted, instead of the most words then pattern matches (`isFallback`), and `count` is then 0.
+  `noFallbackForNumbersFrom: 10` does the same for a query that is one number of 10 or more digits no
+  record holds (an ISBN not in the catalogue); the number's field must be `wordMatching`. With the fallback on and `isFallback` set, `count` is how many hold the most of the words, not a hit count: show none. `rest: true` (EditDistance)
+  adds BM25F's best records not counted below the counted ones, up to the bound, counted in
+  `toleranceCounts.rest`. `fillReach` (0 to 2) and `fillWithMostWords` fill a page the counted
+  records leave short, from the next rung and then the records holding the most words, each in a
+  band below the counted (`fill` in the result says how many). From the next rung a record comes in
+  with at most one word in three of the query met otherwise than exactly. Facet counts are counted over the
+  counted records (and the rest), so they agree with `toleranceCounts`, and fold case.
+- `ranking.boosts` / `ranking.buries` — the tokens from `boosts/from-filter` and
+  `buries/from-filter`; a list that is not empty is on. The dataset's saved boost and bury rules
+  apply to every search.
+- `enableMatchReport` — the result's `matchReport` says for each returned record how each query
+  word was met (`Whole`, `Prefix`, `Suffix`, `Joined`, `RunTogether`, `OneEdit`, `TwoEdits`,
+  `ThreeEdits`, `Synonym`, `NotFound`) and in which field; for `Synonym` also which one (`synonym`,
+  null with the field on 2.0.0-beta.6). Costs in proportion to the records returned.
+- `measureFit` — the result also says how well its first records explain the text
+  (`explainedShare`, `unexplainedShare` and the words on either side), for telling a search from a
+  question while a visitor types.
 - `enableFacets` — also required for an **empty** `text`. Empty text with `enableFacets: false` is
   refused: `200`, no records, `reason` set. The dataset also needs one facetable field.
+- `offset` — the ranked list from that place, for paging; `count` and the facets stay the whole
+  search's. Page while `offset` is below the result's `ranked`.
+- `facetFields` — count only these facetable fields (default: every one); a name that is not a
+  facetable field refuses the search with a `reason`. `facetValueLimit` — the commonest values per
+  field (0, the default: every value).
+- `counts` — `{ "name": "<filter expression>" }`: the result's `counts` says how many of the records
+  `count` counts each filter lets through, over the same set as the facets, without a search of its
+  own (all events counted beside the upcoming listed). A bad expression → `400 invalidFilterExpression`.
+- `includeDocuments` — the response also carries `documents`, the records' JSON in the order of
+  `records` (null for one deleted since): one call instead of a search and a `documents/lookup`.
+  `includeFields: ["card", "id"]` keeps only those top-level fields of each record; it must hold
+  the fields of `collapseBy` (else `400 invalidArgument`).
+- `facetSelections` — `{ "formats": ["Lydbok"], "languages": ["Bokmål", "Nynorsk"] }`: the list holds
+  every selection (OR within a field, AND between); each selected field's facet is counted without its
+  own selection, the rest with all. Facetable fields only. `facetRanges` — `{ "publishedYear":
+  "publishedYear >= 2010" }`, a filter expression on that field alone (facetable and filterable): the
+  same, and its `facetStats` keep the whole span. A bad expression → `400 invalidFilterExpression`.
+- (fields/configuration) `textRules` — a field's own string rules before the engine's, e.g. `[{"from":"-","to":""},{"from":" ","to":""}]` for an ISBN or code field: one word in the index and the query however written. With `"keepOriginal": true` on a rule the field is indexed both with it and without it, so the code is also found with its separators or in part. `[]` the engine's again. In effect at the next load (a rebuild). A field profile carries the same `textRules`. A dataset's own replacements and folds, over every searched field, are set in the web console (Query parameters > Advanced > Text); there is no route for them yet.
+- `collapseBy` — `["bookTitle"]`: one record per value (of several fields: per combination), the
+  first in the ranking kept, nothing moved; `offset` counts the records kept. `count` and the facets
+  count records; a record with none of the fields, or null, stands alone. The fields need a role and may not be arrays (else a `reason`).
 
-`sortBy` — field name as a **string** (e.g. `"price"`).
+`sortBy` — field name as a **string** (e.g. `"price"`). On a text search the records are sorted by it within each tier of relevance, the best matches first; an empty search sorts by it alone.
 
-`fieldBoosts` — per-query multipliers on each field's configured `weight` (BM25F mode only):
+`ranking.fieldBoosts` — per-query multipliers on each field's configured `weight`:
 ```json
-{ "fieldBoosts": { "title": 2.0, "description": 0.5 } }
+{ "ranking": { "fieldBoosts": { "title": 2.0, "description": 0.5 } } }
 ```
-Every key must be a **searchable** field. A key that is not (unknown, or made non-searchable since) empties the whole search: `200`, no records, and a `reason` naming the field. A boost multiplies the weight — `weight: 3.0` × boost `2.0` = 6×; omitted fields keep their weight. Ignored when `bM25k1` differs between searchable fields (per-field scoring).
+Every key must be a **searched** field. A key that is not (unknown, or no longer searched) empties the whole search: `200`, no records, and a `reason` naming the field. A boost multiplies the weight — `weight: 3.0` × boost `2.0` = 6×; omitted fields keep their weight. Every dataset on the server scores in BM25F mode with one k1, so field boosts always apply; a changed `bM25k1` in `PUT fields/configuration` is refused.
 
-#### Coverage values: request, then dataset, then default
+#### Search values: request, then dataset, then default
 
-`coverageDepth` and every property of `coverageSetup` are resolved **one at a time**: the value the
-request sends, else the dataset's **query parameters**, else the engine default shown below. The
+`mode` and every member of `match`, `candidates` and `ranking` are resolved **one at a time**: the
+value the request sends, else the dataset's **query parameters**, else the engine default. The
 dataset's values are set on the console's Query parameters tab or with the API:
 
 ```
 GET    /api/teams/{team}/datasets/{ds}/query-parameters   → { "parameters": {…}, "effective": {…} }
-PUT    /api/teams/{team}/datasets/{ds}/query-parameters   body: { "coverageDepth": 300, "coverageSetup": { "truncate": false } }
+PUT    /api/teams/{team}/datasets/{ds}/query-parameters   body: { "match": { "tolerance": "OneEdit" }, "candidates": { "maxCandidates": 1000 } }
 DELETE /api/teams/{team}/datasets/{ds}/query-parameters
 ```
 
 `parameters` holds what the dataset sets (null elsewhere); `effective` is what a search that sends
-no coverage values runs with. A search key may `GET` it; `PUT`/`DELETE` need write access. Changes
-apply from the next search, no reindex.
+none of these values runs with. A search key may `GET` it; `PUT`/`DELETE` need write access. Changes
+apply from the next search, no reindex. A search's own values are refused in a `PUT` (`400`):
+`match.cursorAt`, `candidates.indexTerms`, `ranking.fieldWeights`/`fieldBoosts`/`boosts`/`buries`.
 
-- **Send only what the search must decide.** Every value sent overrides the dataset's, so sending
-  the whole object with defaults (intrface ≤ 3.10 does) silently ignores the site owner's settings.
+- **Send only what the search must decide.** Every value sent overrides the dataset's.
+- **Parameters saved by a server before 2.0 beta 4** (`coverageDepth`, `coverageSetup`) read as none set: set them again after upgrading, a coverage depth as `candidates.maxCandidates`.
 - **A search that used a dataset value says so** in the `Indx-Query-Parameters` response header,
-  e.g. `coverageDepth, coverageSetup.truncate`. Absent when nothing came from the dataset.
-- In C#, `QueryProxy.CoverageDepth` is `int?` and `QueryProxy.CoverageSetup` is a
-  `CoverageSetupProxy` with every property nullable (IndxSearchLib 5.0.3+).
+  e.g. `match.tolerance, candidates.maxCandidates`. Absent when nothing came from the dataset.
+- In C#, `QueryProxy.Mode` is `SearchMode?`, `QueryProxy.Match` a `MatchProxy` and
+  `QueryProxy.Candidates` a `CandidateProxy`, every member nullable, as are `RankingProxy`'s settings.
 
-Full with CoverageSetup (engine defaults shown):
-```json
-{
-  "text": "search terms",
-  "maxNumberOfRecordsToReturn": 30,
-  "coverageSetup": {
-    "coverWholeQuery": true,
-    "coverWholeWords": true,
-    "coverFuzzyWords": true,
-    "coverJoinedWords": true,
-    "coverPrefixSuffix": true,
-    "includePatternMatches": true,
-    "truncate": true,
-    "truncationScore": 65024,
-    "minWordSize": 2,
-    "levenshteinMaxWordSize": 20,
-    "truncateWordHitLimit": 1,
-    "truncateWordHitTolerance": 0
-  }
-}
-```
 
 ### Result (Search Response)
 
 ```json
 {
   "records": [
-    { "documentKey": 42, "score": 52000 },
-    { "documentKey": 17, "score": 31000 }
+    { "key": "42", "documentKey": 42, "score": 52000, "source": "Counted" },
+    { "key": "17", "documentKey": 17, "score": 31000, "source": "Counted" }
   ],
   "facets": {
     "category": [
@@ -428,24 +524,46 @@ Full with CoverageSetup (engine defaults shown):
       { "key": "accessories", "value": 5 }
     ]
   },
-  "truncationIndex": 15,
-  "truncationScore": 52000,
+  "toleranceCounts": { "exact": 37, "oneEdit": null, "twoEdits": null, "threeEdits": null, "rest": null, "throughSynonym": 0 },
+  "countedTolerance": "Exact",
+  "count": 37,
+  "ranked": 37,
+  "isFallback": false,
+  "reranked": true,
+  "fill": null,
   "didTimeOut": false
 }
 ```
 
-- `records` — `[{ documentKey, score }]`. Score is 0–65535 (ushort); coverage hits always score higher than pattern-only matches.
-- `facets` — only populated when `enableFacets: true`.
+- `records` — `[{ key, documentKey, score, source }]`. `key` is the record's key as text, the one `documents/lookup` and the events take; `documentKey` the number it is held under. `source` says why a record is there: `Counted` (one of `count`), `Fill`, `MostWords` or `Rest`; a filling record can stand above a counted one with `ranking.heaviestFieldFirst`, so do not take the first `count` for the counted ones (after 2.0.0-beta.6). Score is 0–65535 (ushort), in rung order (exact before one edit before two), reranked inside each rung.
+- `facets` — only populated when `enableFacets: true`; counted over every counted record, case folded.
 - `reason` — set when the engine **refused** the query instead of finding nothing: empty `text`
   without `enableFacets`, text over the 300-character limit, a dataset that is not ready. Records are
   empty either way, so check it alongside `didTimeOut` and never render a refusal as "no results".
-- `truncationIndex` — where coverage truncation occurred (–1 if none).
+- `toleranceCounts` — records holding every query word exactly, within one edit, within two, within
+  three (each with those before it; `null` when not worked out), `throughSynonym` those holding a
+  word only through a synonym. `countedTolerance` — the rung the list came from (`Exact`, `OneEdit`,
+  `TwoEdits`, `ThreeEdits`), `null` when nothing was counted. With `candidates.rest`,
+  `toleranceCounts.rest` is the counted rung and the related records taken below it. Absent in
+  `Bm25f` mode. `isFallback` as above.
+- `reranked` — whether the reranker ordered the list. `fill` — `{ nextRungs, mostWords }`, how many
+  listed records came from `fillReach` and `fillWithMostWords`.
+- `count` — how many records answer, in every mode (in `Bm25f` every record with a score, in an
+  empty search every record the filter lets through). `ranked` — how many were ranked, at most the
+  bound: `count` above `ranked` means the bound was too small, `ranked` above the records returned
+  that a next page has more. `0` when nothing is counted and `candidates.fallback` is `false`.
+- `counts` — with the query's `counts`, the count of each named filter over the records `count` counts.
+- `facetStats` — for each number field among the facets, `min`, `max` and how many records hold a value,
+  over the whole search.
+- `documents` — with `includeDocuments`, the records' JSON in the order of `records`.
+- `cold` — the names of the cold storage each listed record holds that the key may read, by record key
+  (`{ "42": ["review", "toc"] }`); absent when none does. Read them with `GET documents/{key}/cold/{name}`.
 - `didTimeOut` — the search could not be *served*, as opposed to serving and finding nothing: either it
   hit the timeout limit, or the engine was not `Ready`. Over HTTP the not-Ready case normally surfaces
   as `409` with the current state before it gets this far, so on this surface the flag almost always
   means the timeout. Either way, do not render an empty result with this flag set as "no results".
 
-Use `POST .../documents/lookup` with the array of `documentKey` values to retrieve full JSON documents.
+Send `includeDocuments: true` to get the records' JSON with the search, or `POST .../documents/lookup` with the records' `key` values. A key is its key field's value as text (`"42"`, `"sku-17"`); `documentKey` is the number it is held under, the key itself when it is a whole number, and found by the lookup as well.
 
 ### Filter and Boost Models
 
@@ -463,16 +581,24 @@ Use `POST .../documents/lookup` with the array of `documentKey` values to retrie
 // FilterProxy — handle returned by filter creation endpoints
 { "hashString": "<filter-hash>" }
 
-// CombinedFilterProxy — AND/OR two existing filters
+// CombinedFilterProxy — AND/OR two or more existing filters into one
 {
-  "a": { "hashString": "<filter-a-hash>" },
-  "b": { "hashString": "<filter-b-hash>" },
+  "filters": [ { "hashString": "<filter-a-hash>" }, { "hashString": "<filter-b-hash>" } ],
   "useAndOperation": true
 }
 
+// InFilterProxy — one of a set of values; numbers compare as numbers on a numeric field
+{ "fieldName": "brand", "values": ["nike", "puma"], "isCaseSensitive": false }
+
 // BoostProxy — boost results matching a filter
-// boostStrength: 1 (Low), 2 (Med), 3 (High)
-{ "boostStrength": 2, "filterProxy": { "hashString": "<filter-hash>" } }
+// boostStrength: "Low", "Med" or "High" (1, 2, 3 still accepted); any other value is 400 invalidArgument.
+// The strengths of one search's boosts may sum to 255 at most (85 at High): past it the search
+// is refused, 200 with no records and `reason` set. Each point costs every unboosted hit 1/255
+// of the score range, so many boosts flatten the order of the hits they do not lift.
+{ "boostStrength": "Med", "filterProxy": { "hashString": "<filter-hash>" } }
+
+// BuryProxy — the documents a filter holds scored lower; nothing else moves
+{ "buryStrength": "High", "filterProxy": { "hashString": "<filter-hash>" } }
 
 // UpdateFieldProxy — partial field update
 { "fieldName": "price", "value": 49.99 }
@@ -495,20 +621,21 @@ Use `POST .../documents/lookup` with the array of `documentKey` values to retrie
 
 ```json
 {
-  "systemState": 4,
+  "systemState": "Ready",
   "documentCount": 5000,
   "searchCounter": 42,
   "secondsToIndex": 2,
-  "version": "5.0.0",
+  "version": "6.0.0",
+  "fieldK1Ignored": false,
   "errorMessage": null,
   "invalidDataSetName": false,
   "invalidState": false
 }
 ```
 
-`systemState`: `0`=Created, `1`=Loading, `2`=Loaded, `3`=Indexing, `4`=Ready, `255`=Error. There is no hibernated state: a hibernated dataset reports `0`=Created with `recordsOnDisk > 0` (the old `-1`=Hibernated is gone).
+`systemState`, by name: `Created`, `Loading`, `Loaded`, `Indexing`, `Ready`, `Error`. There is no hibernated state: a hibernated dataset reports `Created` with `recordsOnDisk > 0` (the old `-1`=Hibernated is gone).
 
-`GET status` returns `CloudSystemStatus`, which adds cloud-layer fields — most usefully `shadowBuildInProgress` (true while a background rebuild runs), `shadowBuildFinishedUtc` (when the last one ended) and `shadowBuildError` (why it failed, or `null`).
+`GET status` returns `CloudSystemStatus`, which adds cloud-layer fields — most usefully `shadowBuildInProgress` (true while a background rebuild runs), `shadowBuildFinishedUtc` (when the last one ended) and `shadowBuildError` (why it failed, or `null`). `filterCacheFilters`, `filterCacheBytes` and `filterCacheLimitBytes` say what the filters kept between searches take of their limit.
 
 ## HTTP API Workflow
 
@@ -521,9 +648,9 @@ All steps below are under `/api/teams/{team}/datasets/{dataset}/`.
 4. PUT   fields/configuration      → configure all fields in one call (204)
 5. POST  load                      → load JSON data (204)
 6. POST  index                     → start indexing (202, SystemStatus body)
-7. GET   status                    → poll until systemState = 4 (Ready)
-8. POST  search                    → returns records with documentKey + score
-9. POST  documents/lookup          → fetch full JSON by document keys
+7. GET   status                    → poll until systemState = "Ready"
+8. POST  search                    → returns records with key + score
+9. POST  documents/lookup          → fetch full JSON by the records' keys
 ```
 
 ## Common HTTP Patterns
@@ -533,7 +660,7 @@ All steps below are under `/api/teams/{team}/datasets/{dataset}/`.
 {
   "text": "exact product name XYZ-123",
   "maxNumberOfRecordsToReturn": 10,
-  "coverageSetup": { "includePatternMatches": false }
+  "candidates": { "fallback": false }
 }
 ```
 
@@ -578,7 +705,7 @@ curl -X POST "$BASE/filters/range" \
 curl -X POST "$BASE/filters/combine" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"a":{"hashString":"abc123"},"b":{"hashString":"def456"},"useAndOperation":true}'
+  -d '{"filters":[{"hashString":"abc123"},{"hashString":"def456"}],"useAndOperation":true}'
 # → {"hashString":"combined789..."}
 
 # 3. Search with filter
@@ -593,12 +720,12 @@ curl -X POST "$BASE/search" \
 curl -X POST "$BASE/boosts/from-filter" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"boostStrength":3,"filterProxy":{"hashString":"<filter-hash>"}}'
+  -d '{"boostStrength":"High","filterProxy":{"hashString":"<filter-hash>"}}'
 
 curl -X POST "$BASE/search" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"text":"headphones","maxNumberOfRecordsToReturn":20,"enableBoost":true,"boosts":[{"boostStrength":3,"filterProxy":{"hashString":"<filter-hash>"}}]}'
+  -d '{"text":"headphones","maxNumberOfRecordsToReturn":20,"ranking":{"boosts":[{"boostStrength":"High","filterProxy":{"hashString":"<filter-hash>"}}]}}'
 ```
 
 **Dynamic insert:**
@@ -661,8 +788,8 @@ await client.post('analyze', jsonData, {
 
 // 3. Configure fields — single call replaces the per-role setters (204)
 await client.put('fields/configuration', [
-  { fieldName: 'name',        searchable: true, weight: 2.0 },
-  { fieldName: 'description', searchable: true, weight: 1.0 },
+  { fieldName: 'name',        wordMatching: true, patternMatching: true, weight: 2.0 },
+  { fieldName: 'description', wordMatching: true, patternMatching: true },
   { fieldName: 'category',    filterable: true, facetable: true },
   { fieldName: 'price',       filterable: true, sortable: true },
 ]);
@@ -681,7 +808,7 @@ let ready = false;
 while (!ready) {
   await new Promise(r => setTimeout(r, 200));
   const { data } = await client.get('status');
-  ready = data.systemState === 4;
+  ready = data.systemState === 'Ready';
 }
 
 // 6. Search
@@ -691,6 +818,6 @@ const { data: result } = await client.post('search', {
 });
 
 // 7. Fetch full documents
-const keys = result.records.map((r: any) => r.documentKey);
+const keys = result.records.map((r: any) => r.key);
 const { data: docs } = await client.post('documents/lookup', keys);
 ```

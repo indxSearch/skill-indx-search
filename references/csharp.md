@@ -3,10 +3,10 @@
 ## Install
 
 ```bash
-dotnet add package IndxSearchLib
+dotnet add package IndxSearchLib --prerelease
 ```
 
-Targets **.NET 10.0**. Current version: **5.0.2**.
+Targets **.NET 10.0**. This page is for **IndxSearchLib 6.0** (while 6.0 is in preview, `--prerelease` or an explicit version). On 5.0.x, see [migration-v5-to-v6.md](migration-v5-to-v6.md) before using anything here.
 
 ## SearchEngine Constructor
 
@@ -35,8 +35,8 @@ engine.Init(stream);
 
 // 2. Configure fields
 if (!engine.TrySetFieldConfiguration([
-    new FieldProxy { FieldName = "name",        Searchable = true, Weight = 2.0f },
-    new FieldProxy { FieldName = "description", Searchable = true, Weight = 1.0f },
+    new FieldProxy { FieldName = "name",        WordMatching = true, PatternMatching = true, Weight = 2.0f },
+    new FieldProxy { FieldName = "description", WordMatching = true, PatternMatching = true },
     new FieldProxy { FieldName = "category",    Filterable = true, Facetable = true },
     new FieldProxy { FieldName = "price",       Filterable = true, Sortable = true },
 ], out string error))
@@ -75,7 +75,8 @@ Init(stream) → TrySetFieldConfiguration(...) → Load(stream) → Index() → 
 
 | Method | Description |
 |--------|-------------|
-| `Hibernate(out string)` | Dispose indexed data to free memory. Searches will timeout. Filters remain usable |
+| `new SearchEngine(license, filterCacheMB: 256)` | How many megabytes the filters kept between searches may take; the least recently used go past it, `0` keeps none. `Status.FilterCacheFilters`, `FilterCacheBytes`, `FilterCacheLimitBytes` say what they take |
+| `Hibernate(out string)` | Dispose indexed data to free memory. Searches will timeout. Filters remain usable. Runs no garbage collection: call `GC.Collect(2, GCCollectionMode.Aggressive, true, true)` when it suits, to give the memory back. It stops every thread of the process while it runs, which on a large heap can be over a second: not while searches are served |
 | `WakeUp()` / `WakeUp(int maxThreadCount)` | Exit hibernation, re-index and resume |
 | `Dispose()` | Free all resources |
 
@@ -125,7 +126,9 @@ foreach (var field in engine.GetFieldConfiguration())
 }
 ```
 
-`FieldProxy` properties: `FieldName`, `FieldType` ("String"/"Number"/"Boolean"), `IsArray`, `Searchable`, `Filterable`, `Facetable`, `Sortable`, `WordIndexing`, `Embeddable`, `Weight`, `BM25b`, `BM25k1`, `PreloadFilters`, `HighResolution` (also index/query N-grams with delimiters removed, so a run-together or split query matches across them).
+`FieldProxy` properties: `FieldName`, `FieldType` ("String"/"Number"/"Boolean"), `IsArray`, `Optional`, `SampleValue`, the roles `WordMatching`, `PatternMatching` (on or off, with `IndexSizes`, `NumberOfStartCharacters` and `NumberOfStopCharacters`, the setup's when on), `Filterable`, `Facetable`, `Sortable`, `Embeddable`, and `Weight`, `BM25b`, `BM25k1`, `Tolerance`, `RerankWeight`, `TypingPrefixFrom`, `CaseSensitive`. A null property on a set call leaves the value as it is.
+
+**A configuration from `Init` searches nothing**: every field starts with neither `WordMatching` nor `PatternMatching`. Give at least one field `WordMatching`, or no search narrows.
 
 ## Field Configuration
 
@@ -137,22 +140,36 @@ Every refusal (an unknown field, a negative weight, a vector field given another
 
 ```csharp
 engine.TrySetFieldConfiguration([
-    new FieldProxy { FieldName = "title",       Searchable = true, Weight = 2.0f },
-    new FieldProxy { FieldName = "description", Searchable = true, Weight = 1.0f },
+    new FieldProxy { FieldName = "title",       WordMatching = true, PatternMatching = true, Weight = 2.0f },
+    new FieldProxy { FieldName = "description", WordMatching = true, PatternMatching = true },
+    new FieldProxy { FieldName = "sku",         WordMatching = true, Tolerance = Tolerance.Exact },
     new FieldProxy { FieldName = "category",    Filterable = true, Facetable = true },
     new FieldProxy { FieldName = "price",       Filterable = true, Sortable = true },
     new FieldProxy { FieldName = "rating",      Sortable = true },
 ], out string error);
 ```
 
-`Weight` is a `float`. Higher values increase the field's influence on BM25 scoring relative to other searchable fields. Typical range: 0.5–3.0.
+How a searched field is matched:
+
+| Setting | What it does |
+|---|---|
+| `WordMatching = true` | Matched by its whole words, exactly and within the edits its `Tolerance` allows; its words are in the word lookup, so the field **counts**. Every word from `TokenizerSetup.MinimumWordSize` (2) is indexed ("A4", "XL") |
+| `PatternMatching` | Matched inside its words: on a `FieldProxy` true or false (true takes `PatternMatchingSetup.Default` unless `IndexSizes` and the start and stop characters say otherwise); on a `Field` a `PatternMatchingSetup?`. `Default` is sizes `[3]`, two start characters, no stop character. `new PatternMatchingSetup([2, 3])` matches short values (tags, codes) by two characters; a stop character anchors the end. Alone, a field orders records but cannot narrow them |
+| `Tolerance` | The most edits the field allows: `Exact`, `OneEdit` (default), `TwoEdits`, `ThreeEdits`. Capped by the search's `Match.Tolerance` |
+| `RerankWeight` | The field's weight in the reranker; 0 leaves it out of the reranker and the word lookup (it still counts through BM25F) |
+| `TypingPrefixFrom` | From how many letters the word being typed matches the start of a longer word in this field |
+| `CaseSensitive` | Matched with case |
+
+Both `WordMatching` and `PatternMatching` is the usual choice for titles, names and descriptions, and is how every searchable field was matched in 5.0. `WordMatching` alone suits codes and identifiers.
+
+`Weight` is a `float` (default 1.0). Higher values increase the field's influence on BM25F scoring relative to other searched fields. Typical range: 0.5 to 3.0.
 
 `Filterable` and `Sortable` are refused on a field with no type: `TrySetFieldConfiguration` returns
 `false` with the reason, and the setters on `Field` throw `ArgumentException`. A field
 that was null in every document analyzed has no type, so a filter cannot choose between a numeric and
-a categorical index and a sort cannot pick a comparator. `Searchable` and `Facetable` do not read the
-type and stay available: setting `Searchable` on such a field prepares it, so a record inserted later
-that does carry a value is indexed and found. Clearing either role is always allowed.
+a categorical index and a sort cannot pick a comparator. The matching roles and `Facetable` do not
+read the type and stay available: setting `WordMatching` on such a field prepares it, so a record
+inserted later that does carry a value is indexed and found. Clearing a role is always allowed.
 
 ### Changing Configuration on a Loaded Engine
 
@@ -163,14 +180,14 @@ var proposed = new[] { new FieldProxy { FieldName = "category", Facetable = true
 
 if (engine.DocumentFields.RequiresReload(proposed))
 {
-    // Searchable, WordIndexing, Embeddable, PreloadFilters, BM25k1, HighResolution.
-    // Only a Load consumes these. Applying one in place returns the engine to Created,
+    // Whether a field is searched at all (WordMatching or PatternMatching on or off),
+    // Embeddable. Only a Load consumes these. Applying one in place returns the engine to Created,
     // and searches then fail with a reason rather than answering as if the field were empty.
 }
 else if (engine.DocumentFields.RequiresReindex(proposed))
 {
     engine.TrySetFieldConfiguration(proposed, out string error);
-    engine.Index();   // includes a field getting its FIRST role: its positions are built here
+    engine.Index();   // which way a searched field is matched, a k1 change, a field's FIRST role
 }
 else
 {
@@ -182,16 +199,27 @@ The alternative to a reload, and what a server does to keep answering while it r
 `CreateInMemoryClone(monitor, fieldOverrides)`: the clone applies the change before it loads, then
 you swap it in.
 
-### Per-Field BM25 Tuning (Advanced)
+### Scoring Mode and BM25 Tuning (Advanced)
 
-By default all searchable fields share the same `BM25k1` value (1.2), which activates BM25F scoring (single unified index). Setting different `BM25k1` values across fields switches to per-field BM25 scoring:
+The scoring mode is the engine's, chosen in the configuration with `ScoringSetup`:
+`ScoringMode.BM25F`, the default, one index across the fields with one k1 (`BM25FK1`, 1.2), or
+`ScoringMode.BM25PerField`, one BM25F index per field with each field's own k1 and b, merged by
+`Weight`. Differing `BM25k1` on the fields no longer chooses the mode. `engine.Scoring` says which.
 
 ```csharp
-new FieldProxy { FieldName = "title",       Searchable = true, BM25k1 = 1.5f, BM25b = 0.5f },
-new FieldProxy { FieldName = "description", Searchable = true, BM25k1 = 1.2f, BM25b = 0.75f },
+var config = ConfigurationParameters.Default.With(
+    scoringSetup: new ScoringSetup(ScoringMode.BM25PerField));
+var engine = new SearchEngine(null, null, config, "indx-developer.license");
+
+// per field: b always, k1 only in BM25PerField
+new FieldProxy { FieldName = "title",       WordMatching = true, BM25b = 0.5f,  BM25k1 = 1.5f },
+new FieldProxy { FieldName = "description", WordMatching = true, BM25b = 0.75f, BM25k1 = 1.2f },
 ```
 
-`BM25b` controls length normalization (range 0–1, default 0.75). `BM25k1` controls term frequency saturation (range 1.0–2.0, default 1.2).
+`BM25b` controls length normalization (range 0 to 1, default 0.75). `BM25k1` controls term frequency
+saturation (range 1.0 to 2.0, default 1.2). In BM25F a field's `BM25k1` is ignored
+(`Status.FieldK1Ignored` says so) and `TrySetFieldConfiguration` refuses a changed value; set
+`ScoringSetup.BM25FK1` instead. A k1 change is a reindex.
 
 ### Saving and Loading Field Configuration
 
@@ -212,22 +240,29 @@ engine.LoadFieldConfiguration("fieldconfig.json");
 ```csharp
 var query = new Query("search text", maxResults)
 {
-    EnableCoverage = true,                  // default: true
-    CoverageDepth = 500,                    // default: 500
-    CoverageSetup = coverageSetup,          // CoverageSetup object, default: null
+    Mode = SearchMode.EditDistance,         // default: EditDistance (or Bm25f)
+    Match = { Tolerance = Tolerance.TwoEdits, Rungs = Rungs.Fewest },     // what counts as a hit
+    Candidates = { CandidatesPerRow = 4, MaxCandidates = null, Fallback = true, Rest = false }, // who comes in
+    Ranking = {                             // the order
+        Rerank = true,                      // default: the reranker orders the candidates, in either mode
+        Share = 0.2f,                       // the reranker's share of the blend
+        Boosts = boostArray,                // Boost[]; a list that is not empty is on
+        Buries = buryArray,                 // Bury[]; the same, scored lower
+        FieldBoosts = new Dictionary<string, float> { ["title"] = 2.0f }, // BM25F per-query boost
+    },
     EnableFacets = false,                   // default: false
-    EnableBoost = false,                    // default: false
     SortBy = engine.GetField("rating"),     // Field object, default: null
     SortAscending = false,                  // default: false
-    RemoveDuplicates = true,                // default: true
     Filter = filter,                        // Filter object, default: null
-    Boosts = boostArray,                    // Boost[], default: null
-    FieldBoosts = new Dictionary<string, float> { ["title"] = 2.0f }, // BM25F per-query boost
     TimeOutLimitMilliseconds = 1000         // default: 1000, max: 10000
 };
 ```
 
-`FieldBoosts` — per-query multipliers on each field's `Weight` for the BM25F scoring path (`Weight = 3.0f` × boost `2.0f` = 6×; fields not listed default to 1.0, i.e. their `Weight`). Only has effect when `ScoringMode` is `BM25F` — every searchable field has the same `BM25k1`. **Every key must be a searchable field**: an unknown or non-searchable key makes `Search` return an empty `Result` with no `Reason`, indistinguishable from no matches; the message is on `engine.Status.ErrorMessage`.
+The three parts are never null. On 5.0 their settings were `CoverageSetup`, `CoverageDepth`,
+`EnableBoost` and members of the query itself; [migration-v5-to-v6.md](migration-v5-to-v6.md) maps
+each.
+
+`Ranking.FieldBoosts`: per-query multipliers on each field's `Weight` (`Weight = 3.0f` × boost `2.0f` = 6×; fields not listed keep their `Weight`). Works in both scoring modes. **Every key must be a searched field**: an unknown key, or a field no longer searched, makes `Search` return an empty `Result` with its `Reason` naming the field. `Ranking.FieldWeights` is the reranker's counterpart, a field's reranking weight for this search.
 
 ## Handling Results
 
@@ -236,9 +271,9 @@ var result = engine.Search(query);
 
 foreach (var entry in result.Records)
 {
-    long key    = entry.DocumentKey;
+    string key   = entry.Key;            // the key field's value as text
     ushort score = entry.Score;          // 0–65535; higher = better match
-    string json = engine.GetJsonDataOfKey(key);
+    string json  = engine.GetJsonDataOfKey(key);
     Console.WriteLine($"[{score}] {json}");
 }
 
@@ -252,14 +287,31 @@ if (result.Facets != null)
 ```
 
 Result properties:
-- `Records` — `ScoreEntry16[]` with `DocumentKey` (long) and `Score` (ushort, 0–65535). Coverage-confirmed matches always score higher than pure pattern matches.
-- `Facets` — `Dictionary<string, KeyValuePair<string, int>[]>` (field → value/count pairs). A facet
-  keys on the value as stored, so a corpus that spells a value both ways lists it twice. A value
-  filter compares case-insensitively unless built with `isCaseSensitive: true`, so clicking either
-  entry returns the documents of both spellings, and a facet count equals a filter count only for a
-  case-sensitive filter
-- `TruncationIndex` — index of the last result that reached the coverage bar; –1 when none did (on a text query with coverage on, every result is then a pattern match) or when coverage did not run
-- `TruncationScore` — score value at the truncation point
+- `Records` — `ScoreEntry16[]` with `Key` (string, the key as text), `DocumentKey` (long, the number it is held under), `Score` (ushort, 0–65535) and, since 6.0.0-rc2, `Source` (`RecordSource`: `Counted`, `Fill`, `MostWords`, `Rest`), in rung order (exact before one edit before two), reranked inside each rung.
+- `Facets` — `Dictionary<string, KeyValuePair<string, int>[]>` (field → value/count pairs), counted
+  over every record the search counted, not only those returned. A value is counted
+  case-insensitively, as a value filter compares, and shown as first written, so a corpus that spells
+  it both ways lists it once, and a default value filter on it returns the facet's count
+- `ToleranceCounts` — how many documents hold every query word `Exact`ly, within `OneEdit`, within
+  `TwoEdits`, within `ThreeEdits` (each with those before it; a rung not worked out is null), with
+  `Candidates.Rest` the `Rest`, and `ThroughSynonym`, the records holding a word only through a
+  synonym. Null in `Bm25f` mode
+- `CountedTolerance` — the rung the list was taken from; null when nothing was counted
+- `Count` — how many documents answer, in every mode: the rung counted (with `Candidates.Rest` the
+  rest too), the fallback's most-words documents, every document with a score in `Bm25f`, every
+  document the filter lets through in an empty search
+- `Ranked` — how many were ranked, at most the candidate bound. `Count > Ranked`: the bound was too
+  small; `Ranked > Records.Length`: more were ranked than the rows asked for
+- `IsFallback` — no document held every word: the most words first, then pattern matches
+- `Fill` (`PageFill`: `NextRungs`, `MostWords`) — how many listed records came from
+  `Candidates.FillReach` and `FillWithMostWords`, below the counted ones
+- `Reranked` — whether the reranker ordered the list
+- `MatchReport` — with `Query.EnableMatchReport`: for each returned record how each query word was
+  met (`Whole`, `Prefix`, `Suffix`, `Joined`, `RunTogether`, `OneEdit`, `TwoEdits`, `ThreeEdits`,
+  `Synonym`, `NotFound`), in which field it counted, and in `Fields` every field that met it; for
+  `Synonym`, since 6.0.0-rc2, `Synonym` is the one the record holds (null, as the field, in rc1)
+- `Reason` — set when the search was refused (a bad request, a disposed engine), null on a normal
+  search including one that matched nothing
 - `DidTimeOut` — `true` when the search could not be **served**, rather than served and found nothing.
   Two causes: it exceeded the timeout, or the engine was not `Ready` (loading, indexing, hibernated).
   Check it before showing "no results" — a dataset being reloaded would otherwise look like a dataset
@@ -277,8 +329,8 @@ Result properties:
 // a text field, so it takes a value filter and refuses a range.
 //
 // The out parameter carries the reason when the call returns null (unknown field,
-// non-filterable field, wrong kind for the type, unparseable bound or culture) and names
-// the alternative. Null means REJECTED, never "no filter": passing it on widens the
+// non-filterable field, wrong kind for the type, unparseable bound) and names the
+// alternative. Null means REJECTED, never "no filter": passing it on widens the
 // search to the whole dataset. Use `out var error` where you want to surface it.
 
 // Value filter — equality match on a filterable, non-numeric field
@@ -294,10 +346,30 @@ Filter priceFilter = engine.CreateRangeFilter("price", 10.0, 100.0, out _)!;
 // Equal limits are numeric equality — how to match one value on a numeric field
 Filter oneItem = engine.CreateRangeFilter("item_id", 129, 129, out _)!;
 
-// Combine with & (AND), | (OR), ! (NOT)
+// One of a set of values: one filter, far faster than an OR of value filters
+// (100 tags on 500 000 documents: 0.1 s as IN, 5.7 s as an OR). Numbers compare as numbers.
+Filter brands = engine.CreateInFilter("brand", ["nike", "puma", "adidas"], out _)!;
+
+// Within a distance, in metres, of a position. The field is an object {"latitude": 59.91,
+// "longitude": 10.75}; mark location.latitude and location.longitude Filterable
+Filter nearby = engine.CreatePositionFilter("location", new GeoPosition(59.91f, 10.75f), 5000, out _)!;
+
+// Dates on a field holding Unix time
+Filter recent = engine.CreateDateRangeFilter("published", DateTime.UtcNow.AddDays(-30), DateTime.UtcNow, out _)!;
+
+// Combine with & (AND), | (OR), ! (NOT), or Filter.And / Filter.Or over any number
 Filter combined  = categoryFilter & priceFilter;
 Filter either    = categoryFilter | priceFilter;
 Filter excluded  = !categoryFilter;
+Filter all       = Filter.And(categoryFilter, priceFilter, brands);
+
+// Or the whole condition as one expression. $name takes a filter you made; MATCHCASE matches
+// case; within(field, lat, lon, meters) is the position filter. Null with the errors when
+// the expression makes no filter, each with its kind, message and place.
+Filter? shop = engine.CreateFilter(
+    "brand IN [\"nike\", \"puma\"] AND price BETWEEN 100 AND 2000 AND NOT category = \"outlet\"",
+    out IReadOnlyList<FilterExpressionError> errors);
+string expression = combined.ToExpression();   // any filter but a custom one, back as text
 
 // Check match count
 int count = combined.NumberOfDocumentsInFilter;
@@ -314,36 +386,38 @@ engine.LoadFilters(new[] { categoryFilter, priceFilter }, maxThreadCount: 2);
 
 ## Boosts
 
-Boost results matching certain criteria without excluding non-matching results. Only affects results where coverage confirms a near-exact match. `CreateBoost` pre-calculates score adjustments for all matching documents.
+Boost results matching certain criteria without excluding non-matching results. A boost adds 257 × its strength to the score of each document its filter holds, so it reorders records that score close together within a rung; it never moves a record across rungs. `CreateBoost` returns `Boost?`: null with the reason in `error` for a null filter or an unknown strength. The strengths of one search's boosts may sum to at most 255; past it the search is refused with a `Reason`.
 
 ```csharp
 Filter yearFilter  = engine.CreateRangeFilter("year", 1980, 2025, out _)!;
 Filter genreFilter = engine.CreateValueFilter("genre", "Documentary", out _)!;
 
 var boosts = new List<Boost>();
-boosts.Add(engine.CreateBoost(yearFilter & genreFilter, BoostStrength.Med));  // BoostStrength: Low, Med, High
+boosts.Add(engine.CreateBoost(yearFilter & genreFilter, BoostStrength.Med, out _)!);  // BoostStrength: Low, Med, High
 
-query.Boosts = boostArray;
-query.EnableBoost = true;
+query.Ranking.Boosts = boosts.ToArray(); // a list that is not empty is on
 ```
 
-**Personalized boosting** — boost a user's own items by OR-ing per-key value filters into one filter, then boosting that filter:
+**Personalized boosting**: boost a user's own items with one IN filter over their keys:
 
 ```csharp
-Filter? frequentPurchases = null;
-foreach (long itemId in userFrequentItemIds)
-{
-    // item_id holds numbers: a range with equal limits, not a value filter
-    Filter f = engine.CreateRangeFilter("item_id", itemId, itemId, out _)!;
-    frequentPurchases = frequentPurchases is null ? f : frequentPurchases | f;
-}
+Filter? frequentPurchases = engine.CreateInFilter("item_id", userFrequentItemIds.Cast<object>(), out _);
 if (frequentPurchases is not null)
-    boosts.Add(engine.CreateBoost(frequentPurchases, BoostStrength.Med));
+    boosts.Add(engine.CreateBoost(frequentPurchases, BoostStrength.Med, out _)!);
+```
+
+**Bury**: the counterpart. A bury scores the documents its filter holds lower by its strength
+(`BuryStrength`: Low, Med, High) and moves nothing else; a buried document still appears, below the
+rest. Use it for out-of-stock items that should stay findable.
+
+```csharp
+Filter outOfStock = engine.CreateRangeFilter("stock", 0, 0, out _)!;
+query.Ranking.Buries = [engine.CreateBury(outOfStock, BuryStrength.High, out _)!];
 ```
 
 ## Synonyms
 
-Attach a `SynonymList` to widen searches: when a query matches an entry, the entry's terms are appended to the query text before scoring. Search-time only — nothing is re-indexed, and the engine works on its own copy of the query, so the caller's `Query` is never modified.
+Attach a `SynonymList` to widen searches: a query word, or run of words, that matches an entry is held through the words as typed **or** any of the entry's terms. A synonym therefore widens the counted set ("war film" with *film ↔ movie* also counts the war movies), and a record holding a word only through a synonym ranks below those holding the typed word on its rung (`ToleranceCounts.ThroughSynonym`). Search-time only: nothing is re-indexed, and the caller's `Query` is never modified.
 
 ```csharp
 engine.SynonymList = new SynonymList
@@ -363,7 +437,7 @@ engine.SynonymList = null;              // search without synonyms again
 ```
 
 - Multi-word terms are matched as whole phrases, and matching splits on the engine's own delimiters, so punctuation (`medisin,`) still triggers an entry.
-- Expansion lengthens the query text, which lowers Coverage scores proportionally — measure the net effect before shipping a large list.
+- The reranker reads the query as typed, so a list does not dilute the typed words' scores. Do not add typos, spelling variants or translations: the matcher finds misspellings itself.
 - After mutating `Entries` in place, call `SynonymList.Invalidate()`; assigning a new list or a new `Entries` collection handles it automatically.
 
 ## Dynamic Document Operations
@@ -378,6 +452,11 @@ engine.InsertJsonRecord(jsonString, out string error);
 engine.InsertJsonRecords(new[] { json1, json2 }, monitor: null, out error);
 engine.InsertJsonRecords(jsonStream, monitor, out error);
 
+// Keys are text: the key field's value ("42", "sku-17"). A result's ScoreEntry16.Key is it;
+// GetJsonDataOfKey, DeleteJsonRecord and UpdateField take it, or the long DocumentKey.
+string json = engine.GetJsonDataOfKey("sku-17");
+engine.DeleteJsonRecord("sku-17");
+
 // Update single (replaces entire document; must include the key field)
 engine.UpdateJsonRecord(jsonString, out error);
 
@@ -385,13 +464,13 @@ engine.UpdateJsonRecord(jsonString, out error);
 engine.UpdateJsonRecords(new[] { json1, json2 }, monitor: null, out error);
 
 // Partial field update
-engine.UpdateField(documentKey, "price", 49.99, out error);
+engine.UpdateField("sku-17", "price", 49.99, out error);
 
 // Batch field update on a filter
 engine.UpdateFieldInFilter(priceFilter, "on_sale", true, out error);
 
 // Delete by key
-engine.DeleteJsonRecord(documentKey);
+engine.DeleteJsonRecord("sku-17");
 
 // Delete multiple
 engine.DeleteJsonRecords(new[] { key1, key2 }, monitor: null);
@@ -432,53 +511,68 @@ var config = ConfigurationParameters.Default.With(
     embeddingSetup: EmbeddingSetup.Default.With(documentVectors: DocumentVectorStorage.Text));
 ```
 
-## Coverage Control
+## Match Control
 
-Coverage re-evaluates the top-K pattern-match candidates for exact and near-exact token matches, promoting confirmed matches above pure pattern results.
+The search counts the documents holding every query word (exactly, else within one edit, else
+two) and the reranker orders them, blended with BM25F. A finished word is matched whole; the word
+being typed (the one `Match.CursorAt` is in, else the last word when no delimiter follows it) is also
+matched as the start of a longer word, from `TypingPrefixFrom` letters. The shortest word is
+`TokenizerSetup.MinimumWordSize` (2). Compound words are linked to their parts when the index is
+built (`CompoundSetup` in the configuration, on by default): "ost" finds "brunost", and
+"hvitløksmør" finds records holding "hvitløk smør".
 
 ```csharp
-var cov = new CoverageSetup
+var query = new Query("search text", 20)
 {
-    CoverWholeQuery    = true,    // default true — detect whole query as a string
-    CoverWholeWords    = true,    // default true — detect individual words
-    CoverFuzzyWords    = true,    // default true — edit-distance tolerance
-    CoverJoinedWords   = true,    // default true — handle split/joined words
-    CoverPrefixSuffix  = true,    // default true — detect partial words
-    IncludePatternMatches = true, // default true — set false for exact-only results
-    Truncate           = true,    // default true — cut results at coverage boundary
-    TruncationScore    = 65024,   // default 65024
-    TruncateWordHitLimit    = 1,  // default 1
-    TruncateWordHitTolerance = 0, // default 0
-    MinWordSize        = 2,       // default 2
-    LevenshteinMaxWordSize = 20,  // default 20
+    Match = {
+        Tolerance = Tolerance.TwoEdits,  // default — the fields' own Field.Tolerance; Exact, OneEdit cap it
+        OneEditFrom = 3, TwoEditsFrom = 6, ThreeEditsFrom = 9,   // letters a word needs for each
+        CursorAt = text.Length,          // the caret, for search-as-you-type
+        JoinedWords = true,              // default — words written together or apart
+    },
+    Candidates = {
+        Fallback = true,                 // default — false for exact-only results
+        FillReach = 1,                   // a short page is filled from the next rung (default 0)
+    },
+    Ranking = { Share = 0.2f, WholeQueryFloor = true },
 };
-query.CoverageSetup = cov;
 ```
 
 ## Common Patterns
 
 **Near-exact hits only:**
 ```csharp
-query.CoverageSetup = new CoverageSetup { IncludePatternMatches = false };
+query.Candidates.Fallback = false;
 ```
 
-**Pattern matching only (disable coverage):**
+**BM25F only (no word count, no reranker):**
 ```csharp
-query.EnableCoverage = false;
+query.Mode = SearchMode.Bm25f;
+query.Ranking.Rerank = false;
 ```
 
-**Keep all results, don't truncate:**
+**BM25F's best, reranked (no word count):**
 ```csharp
-query.CoverageSetup = new CoverageSetup { Truncate = false };
+query.Mode = SearchMode.Bm25f;   // Rerank is true by default
 ```
 
-**Deep coverage (all documents):**
+**Words within an edit, exact first, with a count, in BM25F order:**
 ```csharp
-query.CoverageDepth = engine.Status.DocumentCount;
+query.Mode = SearchMode.EditDistance;   // the default
+query.Ranking.Rerank = false;
 ```
-A broad query whose count lands exactly on `CoverageDepth` is reporting the cap, not the data — hits
-past the depth are never confirmed. Cost is linear in depth, so full-dataset depth is effectively free
-below a few hundred thousand documents.
+
+**Every rung up to the tolerance, not only the first with hits:**
+```csharp
+query.Match.Rungs = Rungs.All;
+```
+
+**Rank more candidates:**
+```csharp
+query.Candidates.MaxCandidates = 5000;
+```
+The count (`Result.ToleranceCounts`) is never capped; the bound decides how many of the counted
+documents are ranked (`Result.Count` above `Result.Ranked` when it was reached). Cost is linear in the candidates.
 
 **Empty search — browse mode with sorting and facets.** `EnableFacets` is what makes empty text
 legal: without it the search is refused, returning an empty `Result` with a `Reason`, which is not the
@@ -509,4 +603,4 @@ if (result.Facets != null && result.Facets.TryGetValue("price", out var histogra
 - **Extended license (free)**: Unlimited — register at [indx.co](https://indx.co)
 - **Company license (paid)**: Unlimited + SLA and support
 
-Pass the license path to the `SearchEngine` constructor, or place the `.license` file in the working directory.
+Pass the license path to the `SearchEngine` constructor: the library reads it from that path only and does not look for one elsewhere. A relative path is resolved against the working directory, so pass a full one (`Path.Combine(AppContext.BaseDirectory, "indx-developer.license")`, the file copied to the output). Without a valid license the engine loads the first 100,000 documents and leaves the rest out: check `engine.Status.LicenseInfo.ValidLicense`, `DocumentLimit` and `DocumentLimitExceeded`.
