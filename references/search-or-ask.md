@@ -2,7 +2,7 @@
 
 Search or ask lets one search field answer questions. On each typing pause a **judge** (Jev, or OpenAI's Decisions API) reads the typed text and the top results and scores it: a lookup, a question, or on a catalogue a description of what to list. The page shows an offer to ask; when the visitor asks, an **answer model** writes the answer from the dataset's records only, citing them. Indx Server only; the C# library does not have it.
 
-Human docs: [v6.docs.indx.co/guides/search-or-ask](https://v6.docs.indx.co/guides/search-or-ask). API: the *Search or Ask* section of the HTTP reference.
+Human docs: [docs.indx.co/guides/search-or-ask](https://docs.indx.co/guides/search-or-ask). API: the *Search or Ask* section of the HTTP reference.
 
 ---
 

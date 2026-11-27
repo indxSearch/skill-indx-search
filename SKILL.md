@@ -234,7 +234,7 @@ For a whole-catalogue reload use `POST …/replace` (Indx): the old index keeps 
 
 **Pitfall: insert and update refuse a field the configuration does not know.** A document carrying a field that is not in the field configuration gets `400 invalidArgument` naming it (`... field(s) not in the field configuration: 'color'`, nested fields by path such as `'meta.batch'`), and nothing is stored: one such document fails its whole batch, and an update leaves the document as it was. Typical cause: a new field added in the CMS while the sync job keeps inserting. Fix: a full `replace` with a complete export, then assign roles to the field reported under `added`. Missing non-key fields are fine (treated as null); a missing key field rejects the batch. Until October 2026 such a field was accepted and silently never indexed; code written for that now gets the 400 instead.
 
-**Webhooks (Indx server): sync from a CMS or shop without your own sync code.** A team admin makes a webhook for a dataset (console *Webhooks*, or `POST …/webhooks { name, idField, versionField? }`); the sender posts its changes to the webhook's `url`, signed with its `secret`, and they are applied as inserts, updates and deletes within seconds. Sanity and Contentful are ready-made sources that need no code; any other system can send its changes with its own code. A full set can be sent once to fill an empty dataset. A **brake** holds a call that would delete or empty more than a tenth of the dataset in an hour until an admin applies or discards it (`…/webhooks/{id}/held`). Prefer a webhook to a hand-written sync job when the source can send one. Human docs: [docs.indx.co/howto/webhooks](https://v6.docs.indx.co/howto/webhooks).
+**Webhooks (Indx server): sync from a CMS or shop without your own sync code.** A team admin makes a webhook for a dataset (console *Webhooks*, or `POST …/webhooks { name, idField, versionField? }`); the sender posts its changes to the webhook's `url`, signed with its `secret`, and they are applied as inserts, updates and deletes within seconds. Sanity and Contentful are ready-made sources that need no code; any other system can send its changes with its own code. A full set can be sent once to fill an empty dataset. A **brake** holds a call that would delete or empty more than a tenth of the dataset in an hour until an admin applies or discards it (`…/webhooks/{id}/held`). Prefer a webhook to a hand-written sync job when the source can send one. Human docs: [docs.indx.co/howto/webhooks](https://docs.indx.co/howto/webhooks).
 
 ### Boost rules, campaigns and personalisation
 
@@ -398,7 +398,7 @@ Model one document per work with editions as an array (`editions[].isbn`, `editi
 Most Indx failures are silent: a query the engine **refuses** looks like a query that found nothing.
 So check `reason` (C#: `Reason`) on every search before anything else — set means refused, `null`
 with no records means an honest no-match. Full page, kept in step with this list:
-[Troubleshooting](https://v6.docs.indx.co/troubleshooting).
+[Troubleshooting](https://docs.indx.co/troubleshooting).
 
 | Symptom | First suspect |
 |---|---|
@@ -474,9 +474,9 @@ Quick answers for feature comparisons. ✅ built in · 🟠 achievable with the 
 ## Resources
 
 - [Indx Home](https://indx.co) — registration and licensing
-- [API Documentation](https://v6.docs.indx.co) — C# and HTTP API reference with How-To guides (Indx 6, in beta; Indx 5 is at docs.indx.co, Indx 4 at v4.docs.indx.co)
-- [Troubleshooting](https://v6.docs.indx.co/troubleshooting) — symptoms, causes and checks
-- [Privacy & hosting](https://v6.docs.indx.co/gdpr) — data residency, GDPR, DPA
+- [API Documentation](https://docs.indx.co) — C# and HTTP API reference with How-To guides (Indx 6; Indx 5, no longer covered by this skill, is at https://v5.docs.indx.co)
+- [Troubleshooting](https://docs.indx.co/troubleshooting) — symptoms, causes and checks
+- [Privacy & hosting](https://docs.indx.co/gdpr) — data residency, GDPR, DPA
 - **C# / .NET**
   - [IndxSearchLib NuGet](https://www.nuget.org/packages/IndxSearchLib/) — core search engine (.NET 10, 6.0)
 - **HTTP API**

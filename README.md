@@ -1,19 +1,17 @@
 # skill-indx-search
 
-> **Preview.** This is the skill for Indx 6, for customers on the preview release. The released skill is on the [`main`](https://github.com/indxSearch/skill-indx-search) branch.
->
-> Targets Indx 6: IndxSearchLib 6.0 and the Indx server 2.0 beta 4 and later. Moving from Indx 5? See the [migration guide](references/migration-v5-to-v6.md).
-> AI agents can sometimes produce incorrect code. Always verify generated output against the [official documentation](https://v6.docs.indx.co).
+> Targets Indx 6: IndxSearchLib 6.0 and the Indx server 2.0 beta 4 and later. Moving from Indx 5? See the [migration guide](references/migration-v5-to-v6.md). Indx 5 is no longer covered by this skill: its documentation is at [v5.docs.indx.co](https://v5.docs.indx.co).
+> AI agents can sometimes produce incorrect code. Always verify generated output against the [official documentation](https://docs.indx.co).
 
 Everything your AI coding agent needs to understand, install, and integrate [Indx Search](https://indx.co) in your project.
 
 ## Install
 
 ```bash
-git clone -b v6 https://github.com/indxSearch/skill-indx-search
+npx skills add indxSearch/skill-indx-search
 ```
 
-Put the folder where your agent reads its skills. `npx skills add indxSearch/skill-indx-search` installs the released skill from `main`.
+Or clone it and put the folder where your agent reads its skills.
 
 Or browse on [skills.sh](https://skills.sh/indxsearch/skill-indx-search/indx-search).
 
@@ -30,6 +28,6 @@ Or browse on [skills.sh](https://skills.sh/indxsearch/skill-indx-search/indx-sea
 - [indx.co](https://indx.co): Registration and licensing
 - [IndxSearchLib on NuGet](https://www.nuget.org/packages/IndxSearchLib/): C# search engine package
 - [Indx](https://github.com/indxSearch/Indx): Self-host HTTP API server
-- [API Documentation](https://v6.docs.indx.co): Full C# API reference
+- [API Documentation](https://docs.indx.co): Full C# API reference
 - [@indxsearch/indx-types](https://www.npmjs.com/package/@indxsearch/indx-types): TypeScript type definitions
 - [@indxsearch/intrface](https://www.npmjs.com/package/@indxsearch/intrface): React search UI components ([GitHub](https://github.com/indxSearch/indx-intrface))
