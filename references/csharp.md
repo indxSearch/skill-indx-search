@@ -271,9 +271,9 @@ var result = engine.Search(query);
 
 foreach (var entry in result.Records)
 {
-    long key    = entry.DocumentKey;
+    string key   = entry.Key;            // the key field's value as text
     ushort score = entry.Score;          // 0–65535; higher = better match
-    string json = engine.GetJsonDataOfKey(key);
+    string json  = engine.GetJsonDataOfKey(key);
     Console.WriteLine($"[{score}] {json}");
 }
 
@@ -287,7 +287,7 @@ if (result.Facets != null)
 ```
 
 Result properties:
-- `Records` — `ScoreEntry16[]` with `DocumentKey` (long), `Score` (ushort, 0–65535) and, after 6.0.0-rc1, `Source` (`RecordSource`: `Counted`, `Fill`, `MostWords`, `Rest`), in rung order (exact before one edit before two), reranked inside each rung.
+- `Records` — `ScoreEntry16[]` with `Key` (string, the key as text), `DocumentKey` (long, the number it is held under), `Score` (ushort, 0–65535) and, since 6.0.0-rc2, `Source` (`RecordSource`: `Counted`, `Fill`, `MostWords`, `Rest`), in rung order (exact before one edit before two), reranked inside each rung.
 - `Facets` — `Dictionary<string, KeyValuePair<string, int>[]>` (field → value/count pairs), counted
   over every record the search counted, not only those returned. A value is counted
   case-insensitively, as a value filter compares, and shown as first written, so a corpus that spells
@@ -309,7 +309,7 @@ Result properties:
 - `MatchReport` — with `Query.EnableMatchReport`: for each returned record how each query word was
   met (`Whole`, `Prefix`, `Suffix`, `Joined`, `RunTogether`, `OneEdit`, `TwoEdits`, `ThreeEdits`,
   `Synonym`, `NotFound`), in which field it counted, and in `Fields` every field that met it; for
-  `Synonym`, after 6.0.0-rc1, `Synonym` is the one the record holds (null, as the field, in rc1)
+  `Synonym`, since 6.0.0-rc2, `Synonym` is the one the record holds (null, as the field, in rc1)
 - `Reason` — set when the search was refused (a bad request, a disposed engine), null on a normal
   search including one that matched nothing
 - `DidTimeOut` — `true` when the search could not be **served**, rather than served and found nothing.
@@ -464,13 +464,13 @@ engine.UpdateJsonRecord(jsonString, out error);
 engine.UpdateJsonRecords(new[] { json1, json2 }, monitor: null, out error);
 
 // Partial field update
-engine.UpdateField(documentKey, "price", 49.99, out error);
+engine.UpdateField("sku-17", "price", 49.99, out error);
 
 // Batch field update on a filter
 engine.UpdateFieldInFilter(priceFilter, "on_sale", true, out error);
 
 // Delete by key
-engine.DeleteJsonRecord(documentKey);
+engine.DeleteJsonRecord("sku-17");
 
 // Delete multiple
 engine.DeleteJsonRecords(new[] { key1, key2 }, monitor: null);

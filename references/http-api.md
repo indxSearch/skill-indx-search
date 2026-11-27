@@ -535,7 +535,7 @@ apply from the next search, no reindex. A search's own values are refused in a `
 }
 ```
 
-- `records` — `[{ documentKey, score, source }]`. `source` says why a record is there: `Counted` (one of `count`), `Fill`, `MostWords` or `Rest`; a filling record can stand above a counted one with `ranking.heaviestFieldFirst`, so do not take the first `count` for the counted ones (after 2.0.0-beta.6). Score is 0–65535 (ushort), in rung order (exact before one edit before two), reranked inside each rung.
+- `records` — `[{ key, documentKey, score, source }]`. `key` is the record's key as text, the one `documents/lookup` and the events take; `documentKey` the number it is held under. `source` says why a record is there: `Counted` (one of `count`), `Fill`, `MostWords` or `Rest`; a filling record can stand above a counted one with `ranking.heaviestFieldFirst`, so do not take the first `count` for the counted ones (after 2.0.0-beta.6). Score is 0–65535 (ushort), in rung order (exact before one edit before two), reranked inside each rung.
 - `facets` — only populated when `enableFacets: true`; counted over every counted record, case folded.
 - `reason` — set when the engine **refused** the query instead of finding nothing: empty `text`
   without `enableFacets`, text over the 300-character limit, a dataset that is not ready. Records are
@@ -649,8 +649,8 @@ All steps below are under `/api/teams/{team}/datasets/{dataset}/`.
 5. POST  load                      → load JSON data (204)
 6. POST  index                     → start indexing (202, SystemStatus body)
 7. GET   status                    → poll until systemState = "Ready"
-8. POST  search                    → returns records with documentKey + score
-9. POST  documents/lookup          → fetch full JSON by document keys
+8. POST  search                    → returns records with key + score
+9. POST  documents/lookup          → fetch full JSON by the records' keys
 ```
 
 ## Common HTTP Patterns
@@ -818,6 +818,6 @@ const { data: result } = await client.post('search', {
 });
 
 // 7. Fetch full documents
-const keys = result.records.map((r: any) => r.documentKey);
+const keys = result.records.map((r: any) => r.key);
 const { data: docs } = await client.post('documents/lookup', keys);
 ```
